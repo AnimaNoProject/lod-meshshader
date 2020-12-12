@@ -14,18 +14,69 @@
     <Filter Include="sources">
       <UniqueIdentifier>{8982ead8-bdae-49ea-9092-c1a3889cd3e6}</UniqueIdentifier>
     </Filter>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="Gears-Vk\examples\hello_world\shaders\a_triangle.frag">
-      <Filter>shaders</Filter>
-    </None>
-    <None Include="Gears-Vk\examples\hello_world\shaders\a_triangle.vert">
-      <Filter>shaders</Filter>
-    </None>
+    <Filter Include="sources\meshoptimizer">
+      <UniqueIdentifier>{390944ed-d65b-465e-a7da-7aad3b669aad}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="sources\main.cpp">
       <Filter>sources</Filter>
     </ClCompile>
+    <ClCompile Include="meshoptimizer\src\allocator.cpp">
+      <Filter>sources\meshoptimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="meshoptimizer\src\clusterizer.cpp">
+      <Filter>sources\meshoptimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="meshoptimizer\src\indexcodec.cpp">
+      <Filter>sources\meshoptimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="meshoptimizer\src\indexgenerator.cpp">
+      <Filter>sources\meshoptimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="meshoptimizer\src\overdrawanalyzer.cpp">
+      <Filter>sources\meshoptimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="meshoptimizer\src\overdrawoptimizer.cpp">
+      <Filter>sources\meshoptimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="meshoptimizer\src\simplifier.cpp">
+      <Filter>sources\meshoptimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="meshoptimizer\src\spatialorder.cpp">
+      <Filter>sources\meshoptimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="meshoptimizer\src\stripifier.cpp">
+      <Filter>sources\meshoptimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="meshoptimizer\src\vcacheanalyzer.cpp">
+      <Filter>sources\meshoptimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="meshoptimizer\src\vcacheoptimizer.cpp">
+      <Filter>sources\meshoptimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="meshoptimizer\src\vertexcodec.cpp">
+      <Filter>sources\meshoptimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="meshoptimizer\src\vertexfilter.cpp">
+      <Filter>sources\meshoptimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="meshoptimizer\src\vfetchanalyzer.cpp">
+      <Filter>sources\meshoptimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="meshoptimizer\src\vfetchoptimizer.cpp">
+      <Filter>sources\meshoptimizer</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\shaders\base.frag">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="assets\shaders\base.mesh">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="assets\asteroid_01.fbx">
+      <Filter>assets</Filter>
+    </None>
   </ItemGroup>
 </Project>

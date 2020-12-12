@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug_Vulkan|x64">
@@ -15,16 +15,32 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="meshoptimizer\src\allocator.cpp" />
+    <ClCompile Include="meshoptimizer\src\clusterizer.cpp" />
+    <ClCompile Include="meshoptimizer\src\indexcodec.cpp" />
+    <ClCompile Include="meshoptimizer\src\indexgenerator.cpp" />
+    <ClCompile Include="meshoptimizer\src\overdrawanalyzer.cpp" />
+    <ClCompile Include="meshoptimizer\src\overdrawoptimizer.cpp" />
+    <ClCompile Include="meshoptimizer\src\simplifier.cpp" />
+    <ClCompile Include="meshoptimizer\src\spatialorder.cpp" />
+    <ClCompile Include="meshoptimizer\src\stripifier.cpp" />
+    <ClCompile Include="meshoptimizer\src\vcacheanalyzer.cpp" />
+    <ClCompile Include="meshoptimizer\src\vcacheoptimizer.cpp" />
+    <ClCompile Include="meshoptimizer\src\vertexcodec.cpp" />
+    <ClCompile Include="meshoptimizer\src\vertexfilter.cpp" />
+    <ClCompile Include="meshoptimizer\src\vfetchanalyzer.cpp" />
+    <ClCompile Include="meshoptimizer\src\vfetchoptimizer.cpp" />
     <ClCompile Include="sources\main.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="Gears-Vk\examples\hello_world\shaders\a_triangle.frag" />
-    <None Include="Gears-Vk\examples\hello_world\shaders\a_triangle.vert" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="Gears-Vk\visual_studio\gears_vk\gears-vk.vcxproj">
       <Project>{602f842f-50c1-466d-8696-1707937d8ab9}</Project>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\asteroid_01.fbx" />
+    <None Include="assets\shaders\base.frag" />
+    <None Include="assets\shaders\base.mesh" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>
@@ -167,6 +183,7 @@
       </ForcedIncludeFiles>
       <TreatSpecificWarningsAsErrors>4715</TreatSpecificWarningsAsErrors>
       <PrecompiledHeaderFile>cg_stdafx.hpp</PrecompiledHeaderFile>
+      <AdditionalIncludeDirectories>$(SolutionDir)meshoptimizer\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

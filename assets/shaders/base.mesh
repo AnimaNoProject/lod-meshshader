@@ -1,0 +1,105 @@
+#version 460
+#extension GL_EXT_shader_16bit_storage: require
+#extension GL_NV_mesh_shader : require
+#extension GL_EXT_nonuniform_qualifier : require
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_ARB_shader_draw_parameters: require
+#extension GL_EXT_shader_8bit_storage: require
+
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+layout(triangles, max_vertices = 64, max_primitives = 124) out;
+
+layout(set = 0, binding = 1) uniform CameraTransform
+{
+	mat4 mViewProjMatrix;
+    vec4 mCamPos;
+} ubo;
+
+struct meshopt_Meshlet
+{
+	uint vertices[64];
+	uint8_t indices[126][3];
+	uint8_t triangle_count;
+	uint8_t vertex_count;
+};
+
+struct meshlet
+{
+	mat4 mTransformationMatrix;
+	uint mMaterialIndex;
+	uint mTexelBufferIndex;
+	uint mMeshPos;
+	uint _padding;
+
+	meshopt_Meshlet mGeometry;
+};
+
+layout(set = 2, binding = 0) uniform samplerBuffer positionBuffers[];
+layout(set = 2, binding = 1) uniform usamplerBuffer indexBuffers[];
+layout(set = 2, binding = 2) uniform samplerBuffer normalBuffers[];
+layout(set = 2, binding = 3) uniform samplerBuffer texCoordsBuffers[];
+layout(set = 2, binding = 4) buffer	 MeshletsBuffer { meshlet values[]; } meshletsBuffer;
+
+layout (location = 0) out PerVertexData
+{
+	vec3 positionWS;
+	vec3 normalWS;
+	vec2 texCoord;
+	flat int materialIndex;
+	vec3 color;
+} v_out[]; 
+
+#define MAX_COLORS 10
+vec3 meshletcolors[MAX_COLORS] = {
+  vec3(1,0,0), 
+  vec3(0,1,0),
+  vec3(0,0,1),
+  vec3(1,1,0),
+  vec3(1,0,1),
+  vec3(0,1,1),
+  vec3(1,0.5,0),
+  vec3(0.5,1,0),
+  vec3(0,0.5,1),
+  vec3(1,1,1)
+};
+
+void main() {
+    uint meshlet_index = gl_WorkGroupID.x;
+
+	uint vertexCount = uint(meshletsBuffer.values[meshlet_index].mGeometry.vertex_count);
+	uint triangleCount = uint(meshletsBuffer.values[meshlet_index].mGeometry.triangle_count);
+	uint materialIndex = meshletsBuffer.values[meshlet_index].mMaterialIndex;
+	mat4 transformationMatrix = meshletsBuffer.values[meshlet_index].mTransformationMatrix;
+
+	uint texelBufferIndex = meshletsBuffer.values[meshlet_index].mTexelBufferIndex;
+	uint meshPos = meshletsBuffer.values[meshlet_index].mMeshPos;
+
+	// for all vertices in the meshlet
+	for (uint i = 0; i < vertexCount; i++)
+	{
+		// get the current vertex id
+		uint vertex_index = meshletsBuffer.values[meshlet_index].mGeometry.vertices[i];
+		// get the vertex position, normal and texcoord
+		vec4 pos = vec4(texelFetch(positionBuffers[texelBufferIndex], int(vertex_index)).xyz, 1.0);
+		vec3 normal = texelFetch(normalBuffers[texelBufferIndex], int(vertex_index)).xyz;
+		vec2 tex = texelFetch(texCoordsBuffers[texelBufferIndex], int(vertex_index)).xy;
+
+		vec4 posWS = transformationMatrix * pos;
+		gl_MeshVerticesNV[i].gl_Position = ubo.mViewProjMatrix * posWS;
+
+		v_out[i].positionWS = posWS.xyz;
+		v_out[i].normalWS = mat3(transformationMatrix) * normal;
+		v_out[i].texCoord = tex;
+		v_out[i].materialIndex = int(materialIndex);
+		v_out[i].color = meshletcolors[meshlet_index % MAX_COLORS];
+	}
+
+	gl_PrimitiveCountNV = triangleCount;
+
+	for (uint i = 0; i < triangleCount; i++)
+	{
+		gl_PrimitiveIndicesNV[i * 3 + 0] = uint(meshletsBuffer.values[meshlet_index].mGeometry.indices[i][0]);
+		gl_PrimitiveIndicesNV[i * 3 + 1] = uint(meshletsBuffer.values[meshlet_index].mGeometry.indices[i][0]);
+		gl_PrimitiveIndicesNV[i * 3 + 2] = uint(meshletsBuffer.values[meshlet_index].mGeometry.indices[i][0]);
+	}
+}
