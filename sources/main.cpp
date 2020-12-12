@@ -123,6 +123,27 @@ public: // v== cgb::invokee overrides which will be invoked by the framework ==v
 				ml.mMaterialIndex = draw_call.mMaterialIndex;
 				ml.mTexelBufferIndex = static_cast<uint32_t>(texel_buffer_index);
 				ml.mMeshPos = static_cast<uint32_t>(draw_call.mMeshPos);
+				ml.mGeometry = meshoptMeshlet;
+			}
+
+			if (meshopt_meshlets.size() > 2966) {
+				auto mindp = 1.0f;
+				for (int i = 0; i < 126; i += 3) {
+					auto v0 = positions[meshopt_meshlets[2966].vertices[meshopt_meshlets[2966].indices[i][0]]];
+					auto v1 = positions[meshopt_meshlets[2966].vertices[meshopt_meshlets[2966].indices[i][1]]];
+					auto v2 = positions[meshopt_meshlets[2966].vertices[meshopt_meshlets[2966].indices[i][2]]];
+					auto nrm = glm::normalize(glm::cross(v1 - v0, v2 - v0));
+					for (int o = 0; o < 126; o += 3) {
+						auto w0 = positions[meshopt_meshlets[2966].vertices[meshopt_meshlets[2966].indices[o][0]]];
+						auto w1 = positions[meshopt_meshlets[2966].vertices[meshopt_meshlets[2966].indices[o][1]]];
+						auto w2 = positions[meshopt_meshlets[2966].vertices[meshopt_meshlets[2966].indices[o][2]]];
+						auto nrmo = glm::normalize(glm::cross(w1 - w0, w2 - w0));
+
+						auto dp = glm::dot(nrm, nrmo);
+						mindp = glm::min(mindp, dp);
+					}
+				}
+				LOG_INFO(fmt::format("mindp of meshlet[2966] is {}", mindp));
 			}
 
 			auto normals = gvk::get_normals(selection);
@@ -174,15 +195,15 @@ public: // v== cgb::invokee overrides which will be invoked by the framework ==v
 			avk::storage_buffer_meta::create_from_data(meshlets),
 			avk::instance_buffer_meta::create_from_data(meshlets)
 				// describe transformation matrix
-				.describe_member(offsetof(meshlet, mTransformationMatrix), vk::Format::eR32G32B32Sfloat, avk::content_description::user_defined_01)
-				.describe_member(offsetof(meshlet, mTransformationMatrix) + sizeof(glm::vec4), vk::Format::eR32G32B32Sfloat, avk::content_description::user_defined_02)
-				.describe_member(offsetof(meshlet, mTransformationMatrix) + 2 * sizeof(glm::vec4), vk::Format::eR32G32B32Sfloat, avk::content_description::user_defined_03)
-				.describe_member(offsetof(meshlet, mTransformationMatrix) + 3 * sizeof(glm::vec4), vk::Format::eR32G32B32Sfloat, avk::content_description::user_defined_04)
+				.describe_member(offsetof(meshlet, mTransformationMatrix),							vk::Format::eR32G32B32Sfloat, avk::content_description::user_defined_01)
+				.describe_member(offsetof(meshlet, mTransformationMatrix) + sizeof(glm::vec4),		vk::Format::eR32G32B32Sfloat, avk::content_description::user_defined_02)
+				.describe_member(offsetof(meshlet, mTransformationMatrix) + 2 * sizeof(glm::vec4),	vk::Format::eR32G32B32Sfloat, avk::content_description::user_defined_03)
+				.describe_member(offsetof(meshlet, mTransformationMatrix) + 3 * sizeof(glm::vec4),	vk::Format::eR32G32B32Sfloat, avk::content_description::user_defined_04)
 				// mesh pos, texelbuffer and meshopt_Meshlet
-				.describe_member(offsetof(meshlet, mMeshPos), vk::Format::eR32Uint, avk::content_description::user_defined_05)
-				.describe_member(offsetof(meshlet, mMeshPos), vk::Format::eR32Uint, avk::content_description::user_defined_06)
-				.describe_member(offsetof(meshlet, mTexelBufferIndex), vk::Format::eR32Uint, avk::content_description::user_defined_07)
-				.describe_member(offsetof(meshlet, mGeometry), vk::Format::eR32Uint, avk::content_description::user_defined_08)
+				.describe_member(offsetof(meshlet, mMeshPos),										vk::Format::eR32Uint, avk::content_description::user_defined_05)
+				.describe_member(offsetof(meshlet, mMeshPos),										vk::Format::eR32Uint, avk::content_description::user_defined_06)
+				.describe_member(offsetof(meshlet, mTexelBufferIndex),								vk::Format::eR32Uint, avk::content_description::user_defined_07)
+				.describe_member(offsetof(meshlet, mGeometry),										vk::Format::eR32Uint, avk::content_description::user_defined_08)
 		);
 		mMeshletsBuffer->fill(meshlets.data(), 0, avk::sync::wait_idle(true));
 		mNumMeshletWorkgroups = meshlets.size();
@@ -232,13 +253,13 @@ public: // v== cgb::invokee overrides which will be invoked by the framework ==v
 			avk::mesh_shader("shaders/base.mesh"),
 			avk::fragment_shader("shaders/base.frag"),
 			avk::cfg::front_face::define_front_faces_to_be_clockwise(),
+			avk::cfg::culling_mode::cull_back_faces,
+			avk::cfg::depth_test::enabled(),
 			avk::cfg::viewport_depth_scissors_config::from_framebuffer(gvk::context().main_window()->backbuffer_at_index(0)),
-
 			avk::attachment::declare(gvk::format_from_window_color_buffer(gvk::context().main_window()), avk::on_load::clear, avk::color(0), avk::on_store::store),
 			avk::attachment::declare(gvk::format_from_window_depth_buffer(gvk::context().main_window()), avk::on_load::clear, avk::depth_stencil(), avk::on_store::store),
-
 			avk::descriptor_binding(0, 0, mImageSamplers),
-			avk::descriptor_binding(0, 1, mViewProjBuffers),
+			avk::descriptor_binding(0, 1, mViewProjBuffers[0]),
 			avk::descriptor_binding(0, 2, mLightBuffer),
 			avk::descriptor_binding(1, 0, mMaterialBuffer),
 			avk::descriptor_binding(2, 0, avk::as_uniform_texel_buffer_views(mPositionBuffers)),
@@ -252,7 +273,7 @@ public: // v== cgb::invokee overrides which will be invoked by the framework ==v
 		if (nullptr != imguiManager) {
 			imguiManager->add_callback([]() {
 
-				ImGui::Begin("Hello, world!");
+				ImGui::Begin("LOD for Mesh Shaders");
 				ImGui::SetWindowPos(ImVec2(1.0f, 1.0f), ImGuiCond_FirstUseEver);
 				ImGui::Text("%.3f ms/frame", 1000.0f / ImGui::GetIO().Framerate);
 				ImGui::Text("%.1f FPS", ImGui::GetIO().Framerate);
@@ -304,10 +325,11 @@ public: // v== cgb::invokee overrides which will be invoked by the framework ==v
 
 		cmdBfr->begin_recording();
 		// directly to the window
-		cmdBfr->begin_render_pass_for_framebuffer(gvk::context().main_window()->get_renderpass(), gvk::context().main_window()->current_backbuffer());
+		cmdBfr->begin_render_pass_for_framebuffer(mPipeline->get_renderpass(), gvk::context().main_window()->current_backbuffer());
 		// bind the pipeline
 		cmdBfr->bind_pipeline(const_referenced(mPipeline));
-		cmdBfr->bind_descriptors(mPipeline->layout(), mDescriptorCache.get_or_create_descriptor_sets({
+		cmdBfr->bind_descriptors(mPipeline->layout(), 
+			mDescriptorCache.get_or_create_descriptor_sets({
 			avk::descriptor_binding(0, 0, mImageSamplers),
 			avk::descriptor_binding(0, 1, mViewProjBuffers[ifi]),
 			avk::descriptor_binding(0, 2, mLightBuffer),
@@ -329,7 +351,7 @@ public: // v== cgb::invokee overrides which will be invoked by the framework ==v
 
 		// Submit the draw call and take care of the command buffer's lifetime:
 		mQueue->submit(cmdBfr, imageAvailableSemaphore);
-		mainWnd->handle_lifetime(avk::owned(cmdBfr));
+		mainWnd->handle_lifetime(std::move(cmdBfr));
 	}
 
 private: // v== Member variables ==v
@@ -366,11 +388,14 @@ int main() // <== Starting point ==
 		auto mainWnd = gvk::context().create_window("LOD Mesh Shaders");
 		mainWnd->set_resolution({ 1920, 1080 });
 		mainWnd->enable_resizing(true);
-		mainWnd->set_presentaton_mode(gvk::presentation_mode::mailbox);
+		mainWnd->set_additional_back_buffer_attachments({
+			avk::attachment::declare(vk::Format::eD32Sfloat, avk::on_load::clear, avk::depth_stencil(), avk::on_store::dont_care)
+		});
+		mainWnd->set_presentaton_mode(gvk::presentation_mode::fifo);
 		mainWnd->set_number_of_concurrent_frames(3u);
 		mainWnd->open();
 
-		auto& singleQueue = gvk::context().create_queue({}, avk::queue_selection_preference::versatile_queue, mainWnd);
+		auto& singleQueue = gvk::context().create_queue(vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute, avk::queue_selection_preference::versatile_queue, mainWnd);
 		mainWnd->add_queue_family_ownership(singleQueue);
 		mainWnd->set_present_queue(singleQueue);
 

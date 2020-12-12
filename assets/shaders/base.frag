@@ -63,6 +63,7 @@ layout(set = 1, binding = 0) buffer Material
 	MaterialGpuData materials[];
 } matSsbo;
 
+
 struct lightsource
 {
 	vec4 color;
