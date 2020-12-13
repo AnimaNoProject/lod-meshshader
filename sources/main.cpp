@@ -19,7 +19,6 @@ class lod_mesh_shader : public gvk::invokee
 		uint32_t mModelIndex;
 		uint32_t mMeshPos;
 
-
 		meshopt_Meshlet mGeometry;
 	};
 
@@ -43,13 +42,33 @@ public: // v== cgb::invokee overrides which will be invoked by the framework ==v
 	lod_mesh_shader(avk::queue& aQueue) : mQueue{ &aQueue }
 	{}
 
+	/** Two queries per frame, and those double-buffered! => 4 query slots per frame in flight
+	*
+	*	@param	aForCurrentFrame	true: double buffer indices for current frame,
+	*								false: double buffer indices for the previous frame
+	*	@param	aQueryIndex			Valid values: [0..aMaxQueryIndices)
+	*	@param	aMaxQueryIndices	How many query indices are there per entry?
+	*								Could be, e.g., two for timestamps: a begin timestamp and an end timestamp.
+	*/
+	static size_t get_timestamp_query_index(bool aForCurrentFrame, int64_t aQueryIndex = 0, int64_t aMaxQueryIndices = 1)
+	{
+		assert(aQueryIndex >= 0 && aQueryIndex < aMaxQueryIndices);
+		static auto sFramesInFlight = gvk::context().main_window()->number_of_frames_in_flight();
+		auto ifi = gvk::context().main_window()->current_in_flight_index();
+		auto pingpong = gvk::context().main_window()->current_frame() / sFramesInFlight;
+		if (!aForCurrentFrame) {
+			pingpong -= 1;
+		}
+
+		return static_cast<size_t>(ifi * (2 * aMaxQueryIndices) + std::abs(pingpong % 2) * aMaxQueryIndices + aQueryIndex);
+	}
+
 	void initialize() override
 	{
-		// Print some information about the available memory on the selected physical device:
-		gvk::context().print_available_memory_types();
 		mDescriptorCache = gvk::context().create_descriptor_cache();
 
-		std::vector<gvk::material_config> allMatConfigs;
+		std::vector<gvk::material_config> allMatConfigs;	// save all materials
+		std::vector<meshlet> meshlets;						// save all meshlets
 
 		gvk::model asteroid = gvk::model_t::load_from_file("assets/asteroid_01.fbx", aiProcess_Triangulate);
 
@@ -60,8 +79,6 @@ public: // v== cgb::invokee overrides which will be invoked by the framework ==v
 			allMatConfigs.push_back(pair.first);
 		}
 
-
-		std::vector<meshlet> meshlets;
 
 		// in case of multiple meshes go through all of them
 		const auto mesh_indices = asteroid->select_all_meshes();
@@ -126,26 +143,6 @@ public: // v== cgb::invokee overrides which will be invoked by the framework ==v
 				ml.mGeometry = meshoptMeshlet;
 			}
 
-			if (meshopt_meshlets.size() > 2966) {
-				auto mindp = 1.0f;
-				for (int i = 0; i < 126; i += 3) {
-					auto v0 = positions[meshopt_meshlets[2966].vertices[meshopt_meshlets[2966].indices[i][0]]];
-					auto v1 = positions[meshopt_meshlets[2966].vertices[meshopt_meshlets[2966].indices[i][1]]];
-					auto v2 = positions[meshopt_meshlets[2966].vertices[meshopt_meshlets[2966].indices[i][2]]];
-					auto nrm = glm::normalize(glm::cross(v1 - v0, v2 - v0));
-					for (int o = 0; o < 126; o += 3) {
-						auto w0 = positions[meshopt_meshlets[2966].vertices[meshopt_meshlets[2966].indices[o][0]]];
-						auto w1 = positions[meshopt_meshlets[2966].vertices[meshopt_meshlets[2966].indices[o][1]]];
-						auto w2 = positions[meshopt_meshlets[2966].vertices[meshopt_meshlets[2966].indices[o][2]]];
-						auto nrmo = glm::normalize(glm::cross(w1 - w0, w2 - w0));
-
-						auto dp = glm::dot(nrm, nrmo);
-						mindp = glm::min(mindp, dp);
-					}
-				}
-				LOG_INFO(fmt::format("mindp of meshlet[2966] is {}", mindp));
-			}
-
 			auto normals = gvk::get_normals(selection);
 			auto texCoords = gvk::get_2d_texture_coordinates(selection, 0);
 			
@@ -195,15 +192,15 @@ public: // v== cgb::invokee overrides which will be invoked by the framework ==v
 			avk::storage_buffer_meta::create_from_data(meshlets),
 			avk::instance_buffer_meta::create_from_data(meshlets)
 				// describe transformation matrix
-				.describe_member(offsetof(meshlet, mTransformationMatrix),							vk::Format::eR32G32B32Sfloat, avk::content_description::user_defined_01)
-				.describe_member(offsetof(meshlet, mTransformationMatrix) + sizeof(glm::vec4),		vk::Format::eR32G32B32Sfloat, avk::content_description::user_defined_02)
-				.describe_member(offsetof(meshlet, mTransformationMatrix) + 2 * sizeof(glm::vec4),	vk::Format::eR32G32B32Sfloat, avk::content_description::user_defined_03)
-				.describe_member(offsetof(meshlet, mTransformationMatrix) + 3 * sizeof(glm::vec4),	vk::Format::eR32G32B32Sfloat, avk::content_description::user_defined_04)
+				.describe_member(offsetof(meshlet, mTransformationMatrix),							vk::Format::eR32G32B32Sfloat,	avk::content_description::user_defined_01)
+				.describe_member(offsetof(meshlet, mTransformationMatrix) +		sizeof(glm::vec4),	vk::Format::eR32G32B32Sfloat,	avk::content_description::user_defined_02)
+				.describe_member(offsetof(meshlet, mTransformationMatrix) + 2 * sizeof(glm::vec4),	vk::Format::eR32G32B32Sfloat,	avk::content_description::user_defined_03)
+				.describe_member(offsetof(meshlet, mTransformationMatrix) + 3 * sizeof(glm::vec4),	vk::Format::eR32G32B32Sfloat,	avk::content_description::user_defined_04)
 				// mesh pos, texelbuffer and meshopt_Meshlet
-				.describe_member(offsetof(meshlet, mMeshPos),										vk::Format::eR32Uint, avk::content_description::user_defined_05)
-				.describe_member(offsetof(meshlet, mMeshPos),										vk::Format::eR32Uint, avk::content_description::user_defined_06)
-				.describe_member(offsetof(meshlet, mTexelBufferIndex),								vk::Format::eR32Uint, avk::content_description::user_defined_07)
-				.describe_member(offsetof(meshlet, mGeometry),										vk::Format::eR32Uint, avk::content_description::user_defined_08)
+				.describe_member(offsetof(meshlet, mMeshPos),										vk::Format::eR32Uint,			avk::content_description::user_defined_05)
+				.describe_member(offsetof(meshlet, mModelIndex),									vk::Format::eR32Uint,			avk::content_description::user_defined_06)
+				.describe_member(offsetof(meshlet, mTexelBufferIndex),								vk::Format::eR32Uint,			avk::content_description::user_defined_07)
+				.describe_member(offsetof(meshlet, mGeometry),										vk::Format::eR32Uint,			avk::content_description::user_defined_08)
 		);
 		mMeshletsBuffer->fill(meshlets.data(), 0, avk::sync::wait_idle(true));
 		mNumMeshletWorkgroups = meshlets.size();
@@ -215,11 +212,6 @@ public: // v== cgb::invokee overrides which will be invoked by the framework ==v
 			avk::border_handling_mode::repeat,
 			avk::sync::with_barriers(gvk::context().main_window()->command_buffer_lifetime_handler())
 		);
-
-		// setup camera and buffers for view projection matrices
-		mCam.set_translation({ 0.0f, 1.0f, 2.0f });
-		mCam.set_perspective_projection(glm::radians(60.0f), gvk::context().main_window()->aspect_ratio(), 0.03f, 1000.0f);
-		gvk::current_composition()->add_element(mCam);
 
 		for (int i = 0; i < gvk::context().main_window()->number_of_frames_in_flight(); ++i) {	// prepare buffers for all frames
 			mViewProjBuffers.emplace_back(
@@ -246,15 +238,11 @@ public: // v== cgb::invokee overrides which will be invoked by the framework ==v
 		mMaterialBuffer->fill(gpuMaterials.data(), 0, avk::sync::not_required());
 
 		mImageSamplers = std::move(imageSamplers);
-		auto swapChainFormat = gvk::context().main_window()->swap_chain_image_format();
 
-		// Create a graphics pipeline:
 		mPipeline = gvk::context().create_graphics_pipeline_for(
 			avk::mesh_shader("shaders/base.mesh"),
 			avk::fragment_shader("shaders/base.frag"),
-			avk::cfg::front_face::define_front_faces_to_be_clockwise(),
-			avk::cfg::culling_mode::cull_back_faces,
-			avk::cfg::depth_test::enabled(),
+			avk::cfg::front_face::define_front_faces_to_be_counter_clockwise(),
 			avk::cfg::viewport_depth_scissors_config::from_framebuffer(gvk::context().main_window()->backbuffer_at_index(0)),
 			avk::attachment::declare(gvk::format_from_window_color_buffer(gvk::context().main_window()), avk::on_load::clear, avk::color(0), avk::on_store::store),
 			avk::attachment::declare(gvk::format_from_window_depth_buffer(gvk::context().main_window()), avk::on_load::clear, avk::depth_stencil(), avk::on_store::store),
@@ -269,22 +257,17 @@ public: // v== cgb::invokee overrides which will be invoked by the framework ==v
 			avk::descriptor_binding(2, 4, mMeshletsBuffer)
 		);
 
+		mCam.set_translation({ 0.0f, 0.0f, 2.0f });
+		mCam.set_perspective_projection(glm::radians(60.0f), gvk::context().main_window()->aspect_ratio(), 0.03f, 1000.0f);
+		gvk::current_composition()->add_element(mCam);
+
 		auto imguiManager = gvk::current_composition()->element_by_type<gvk::imgui_manager>();
 		if (nullptr != imguiManager) {
-			imguiManager->add_callback([]() {
-
-				ImGui::Begin("LOD for Mesh Shaders");
+			imguiManager->add_callback([] ()  {
+				ImGui::Begin("Info & Settings");
 				ImGui::SetWindowPos(ImVec2(1.0f, 1.0f), ImGuiCond_FirstUseEver);
 				ImGui::Text("%.3f ms/frame", 1000.0f / ImGui::GetIO().Framerate);
 				ImGui::Text("%.1f FPS", ImGui::GetIO().Framerate);
-
-				static std::vector<float> values;
-				values.push_back(1000.0f / ImGui::GetIO().Framerate);
-				if (values.size() > 90) {
-					values.erase(values.begin());
-				}
-				ImGui::PlotLines("ms/frame", values.data(), values.size(), 0, nullptr, 0.0f, FLT_MAX, ImVec2(0.0f, 100.0f));
-				ImGui::End();
 			});
 		}
 	}
@@ -315,7 +298,7 @@ public: // v== cgb::invokee overrides which will be invoked by the framework ==v
 		auto ifi = mainWnd->current_in_flight_index();
 
 		camera_data cd;
-		cd.mViewProjMatrix	= mCam.projection_and_view_matrix();
+		cd.mViewProjMatrix	= mCam.projection_matrix() * mCam.view_matrix();
 		cd.mCamPos = glm::vec4(mCam.translation(), 0.0f);
 		mViewProjBuffers[ifi]->fill(&cd, 0, avk::sync::not_required());
 
@@ -374,11 +357,6 @@ private: // v== Member variables ==v
 	std::vector<avk::buffer_view> mIndexBuffers;
 	std::vector<avk::buffer_view> mTexCoordsBuffers;
 	std::vector<avk::buffer_view> mNormalBuffers;
-
-#if _DEBUG
-	gvk::updater mUpdater;
-#endif
-
 }; 
 
 int main() // <== Starting point ==
@@ -386,7 +364,7 @@ int main() // <== Starting point ==
 	try {
 		// Create a window and open it
 		auto mainWnd = gvk::context().create_window("LOD Mesh Shaders");
-		mainWnd->set_resolution({ 1920, 1080 });
+		mainWnd->set_resolution({ 1600, 900 });
 		mainWnd->enable_resizing(true);
 		mainWnd->set_additional_back_buffer_attachments({
 			avk::attachment::declare(vk::Format::eD32Sfloat, avk::on_load::clear, avk::depth_stencil(), avk::on_store::dont_care)

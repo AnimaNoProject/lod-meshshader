@@ -39,6 +39,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="assets\asteroid_01.fbx" />
+    <None Include="assets\cube.fbx" />
     <None Include="assets\shaders\base.frag" />
     <None Include="assets\shaders\base.mesh" />
   </ItemGroup>

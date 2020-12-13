@@ -78,5 +78,8 @@
     <None Include="assets\asteroid_01.fbx">
       <Filter>assets</Filter>
     </None>
+    <None Include="assets\cube.fbx">
+      <Filter>assets</Filter>
+    </None>
   </ItemGroup>
 </Project>
