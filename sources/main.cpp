@@ -238,10 +238,10 @@ public:
 			);
 		}
 
-		mDrawCount = 20;
-		float sceneRadius = 30;
-		float sceneDistance = 20;
-		srand(42);
+		mDrawCount = 250;
+		float sceneRadius = 50;
+		float sceneDistance = 25;
+		srand(100);
 
 		for (uint32_t i = 0; i < mDrawCount; i++)
 		{
@@ -308,7 +308,7 @@ public:
 			avk::descriptor_binding(2, 3, avk::as_uniform_texel_buffer_views(mTexCoordsBuffers)),
 			avk::descriptor_binding(2, 4, mMeshletsBuffer),
 			avk::descriptor_binding(3, 1, mMeshDrawBuffer),
-			avk::push_constant_binding_data{ avk::shader_type::mesh, 0, sizeof(push_constants_for_mesh_shader) }
+			avk::push_constant_binding_data{ avk::shader_type::task, 0, sizeof(push_constants_for_mesh_shader) }
 		);
 
 		mCam.set_translation({ 0.0f, 0.0f, 5.0f });
@@ -397,6 +397,8 @@ public:
 		// Buffer buffer, DeviceSize offset, Buffer countBuffer, DeviceSize countBufferOffset, uint32_t maxDrawCount, uint32_t stride
 		//cmdBfr->handle().drawMeshTasksIndirectCountNV(mDrawCallBuffer.get().handle(), offsetof(MeshDrawCommand, indirectMS), mDrawCallCountBuffer.get().handle(),
 		//	static_cast<uint32_t>(0), static_cast<uint32_t>(mMeshTransforms.size()), static_cast<uint32_t>(sizeof(MeshDrawCommand)));
+		//cmdBfr->handle().drawMeshTasksIndirectNV(mDrawCallBuffer.get().handle(), offsetof(MeshDrawCommand, indirectMS),
+		//	static_cast<uint32_t>(mMeshTransforms.size()), static_cast<uint32_t>(sizeof(MeshDrawCommand)));
 
 		cmdBfr->end_render_pass();
 		cmdBfr->end_recording();

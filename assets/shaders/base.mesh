@@ -20,11 +20,14 @@ layout(triangles, max_vertices = 64, max_primitives = 124) out;
 
 in taskNV block {
 	uint meshletOffset;
+	int lod;
+	int mModelId;
 };
 
 layout(set = 0, binding = 1) uniform CameraTransform
 {
 	mat4 mViewProjMatrix;
+	vec4 mCamPos;
 } ubo;
 
 layout(set = 2, binding = 0) uniform samplerBuffer positionBuffers[];
@@ -38,10 +41,6 @@ layout(set = 3, binding = 1) buffer Draws
 	MeshDraw draws[];
 };
 
-layout(push_constant) uniform PushConstants {
-	int mModelId;
-} pushConstants;
-
 layout (location = 0) out PerVertexData
 {
 	vec3 positionWS;
@@ -51,18 +50,12 @@ layout (location = 0) out PerVertexData
 	vec3 color;
 } v_out[]; 
 
-#define MAX_COLORS 10
+#define MAX_COLORS 4
 vec3 meshletcolors[MAX_COLORS] = {
   vec3(1,0,0), 
   vec3(0,1,0),
   vec3(0,0,1),
-  vec3(1,1,0),
-  vec3(1,0,1),
-  vec3(0,1,1),
-  vec3(1,0.5,0),
-  vec3(0.5,1,0),
-  vec3(0,0.5,1),
-  vec3(1,1,1)
+  vec3(1,1,0)
 };
 
 void main() {
@@ -76,7 +69,7 @@ void main() {
 	uint texelBufferIndex = meshletsBuffer.values[meshlet_index].mTexelBufferIndex;
 	uint meshPos = meshletsBuffer.values[meshlet_index].mMeshPos;
 
-	MeshDraw meshDraw = draws[pushConstants.mModelId];
+	MeshDraw meshDraw = draws[mModelId];
 
 	// for all vertices in the meshlet
 	for (uint i = 0; i < vertexCount; i++)
@@ -94,7 +87,7 @@ void main() {
 		v_out[i].normalWS = mat3(modelMatrix) * normal;
 		v_out[i].texCoord = tex;
 		v_out[i].materialIndex = int(materialIndex);
-		v_out[i].color = meshletcolors[meshlet_index % MAX_COLORS];
+		v_out[i].color = meshletcolors[lod];//meshletcolors[meshlet_index % MAX_COLORS];
 	}
 
 	gl_PrimitiveCountNV = triangleCount;
