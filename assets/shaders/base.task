@@ -13,29 +13,20 @@
 #define MESHOPT_MAX_VERTICES 64
 #define MESHOPT_MAX_TRIANGLES 124
 
+#include "definitions.h"
+
 layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
 
-struct meshopt_Meshlet
-{
-	uint vertices[64];
-	uint8_t indices[126][3];
-	uint8_t triangle_count;
-	uint8_t vertex_count;
-};
-
-struct meshlet
-{
-	mat4 mTransformationMatrix;
-	uint mMaterialIndex;
-	uint mTexelBufferIndex;
-	uint mModelIndex;
-	uint mMeshPos;
-
-	meshopt_Meshlet mGeometry;
-};
-
-
 layout(set = 2, binding = 4) buffer	 MeshletsBuffer { meshlet values[]; } meshletsBuffer;
+
+layout(set = 3, binding = 1) buffer Draws
+{
+	MeshDraw draws[];
+};
+
+layout(push_constant) uniform PushConstants {
+	int mModelId;
+} pushConstants;
 
 out taskNV block {
 	uint meshletOffset;

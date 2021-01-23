@@ -43,6 +43,9 @@
     <None Include="assets\shaders\base.mesh" />
     <None Include="assets\shaders\base.task" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="assets\shaders\definitions.h" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>
     <ProjectGuid>{e70daa14-0a98-4575-a4b7-ce39769fced2}</ProjectGuid>

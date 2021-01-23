@@ -1,6 +1,6 @@
 #include <gvk.hpp>
 #include <imgui.h>
-
+#include <glm/gtx/quaternion.hpp>
 #include <meshoptimizer.h>
 
 class lod_mesh_shader : public gvk::invokee
@@ -11,21 +11,27 @@ class lod_mesh_shader : public gvk::invokee
 		glm::vec4 mCamPos;
 	};
 
-	struct alignas(16) drawtask
-	{
-		glm::vec4 mPos;
-		glm::mat4 mTransformation;
-	};
-
 	struct alignas(16) meshlet
 	{
-		glm::mat4 mTransformationMatrix;
+		glm::mat4 mModelMatrix;
 		uint32_t mMaterialIndex;
 		uint32_t mTexelBufferIndex;
 		uint32_t mModelIndex;
 		uint32_t mMeshPos;
 
 		meshopt_Meshlet mGeometry;
+	};
+
+	struct alignas(16) MeshDraw
+	{
+		glm::mat4 transformationMatrix;
+	};
+
+	struct MeshDrawCommand
+	{
+		uint32_t drawId;
+		VkDrawIndexedIndirectCommand indirect; // 5 uint32_t
+		VkDrawMeshTasksIndirectCommandNV indirectMS; // 2 uint32_t
 	};
 
 	struct data_for_draw_call
@@ -44,9 +50,8 @@ class lod_mesh_shader : public gvk::invokee
 		int32_t _padding2;
 	};
 
-	struct data_per_instance
-	{
-		glm::mat4 mTransformation;
+	struct push_constants_for_mesh_shader {
+		int mModelId;
 	};
 
 public: 
@@ -76,7 +81,6 @@ public:
 
 	void initialize() override	
 	{
-		auto& dt1 = mDrawTasks.emplace_back();
 		mDescriptorCache = gvk::context().create_descriptor_cache();
 
 		std::vector<gvk::material_config> allMatConfigs;	// save all materials
@@ -90,7 +94,6 @@ public:
 		{
 			allMatConfigs.push_back(pair.first);
 		}
-
 
 		// in case of multiple meshes go through all of them
 		const auto mesh_indices = asteroid->select_all_meshes();
@@ -148,7 +151,7 @@ public:
 				auto& ml = meshlets.emplace_back();
 				memset(&ml, 0, sizeof(meshlet));
 
-				ml.mTransformationMatrix = draw_call.mModelMatrix;
+				ml.mModelMatrix = draw_call.mModelMatrix;
 				ml.mMaterialIndex = draw_call.mMaterialIndex;
 				ml.mTexelBufferIndex = static_cast<uint32_t>(texel_buffer_index);
 				ml.mMeshPos = static_cast<uint32_t>(draw_call.mMeshPos);
@@ -198,49 +201,25 @@ public:
 			mTexCoordsBuffers.push_back(gvk::context().create_buffer_view(shared(draw_call.mTexCoordsBuffer)));
 		}
 
-		std::vector<drawtask> drawTasks;
-
-		auto& dt = drawTasks.emplace_back();
-		memset(&dt, 0, sizeof(drawtask));
-		dt.mPos = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
-		dt.mTransformation = glm::mat4(1.0f);
-
-		auto& dt2 = drawTasks.emplace_back();
-		memset(&dt2, 0, sizeof(drawtask));
-		dt2.mPos = glm::vec4(3.0f, 0.0f, 0.0f, 1.0f);
-		dt2.mTransformation = glm::translate(glm::vec3(3.0f, 0.0f, 0.0f));
-		
-		mDrawtaskBuffer = gvk::context().create_buffer(
-			avk::memory_usage::device, {},
-			avk::storage_buffer_meta::create_from_data(drawTasks),
-			avk::instance_buffer_meta::create_from_data(drawTasks)
-				.describe_member(offsetof(drawtask, mPos),										vk::Format::eR32G32B32Sfloat, avk::content_description::user_defined_01)
-				.describe_member(offsetof(drawtask, mTransformation),							vk::Format::eR32G32B32Sfloat, avk::content_description::user_defined_02)
-				.describe_member(offsetof(drawtask, mTransformation) + sizeof(glm::vec4),		vk::Format::eR32G32B32Sfloat, avk::content_description::user_defined_03)
-				.describe_member(offsetof(drawtask, mTransformation) + 2 * sizeof(glm::vec4),	vk::Format::eR32G32B32Sfloat, avk::content_description::user_defined_04)
-				.describe_member(offsetof(drawtask, mTransformation) + 3 * sizeof(glm::vec4),	vk::Format::eR32G32B32Sfloat, avk::content_description::user_defined_05)
-		);
-		mDrawtaskBuffer->fill(drawTasks.data(), 0, avk::sync::wait_idle(true));
-		mNumTaskWorkgroups = drawTasks.size();
-
-		// 
-		mMeshletsBuffer = gvk::context().create_buffer(
-			avk::memory_usage::device, {},
-			avk::storage_buffer_meta::create_from_data(meshlets),
-			avk::instance_buffer_meta::create_from_data(meshlets)
+		{
+			mMeshletsBuffer = gvk::context().create_buffer(
+				avk::memory_usage::device, {},
+				avk::storage_buffer_meta::create_from_data(meshlets),
+				avk::instance_buffer_meta::create_from_data(meshlets)
 				// describe transformation matrix
-				.describe_member(offsetof(meshlet, mTransformationMatrix),							vk::Format::eR32G32B32Sfloat,	avk::content_description::user_defined_01)
-				.describe_member(offsetof(meshlet, mTransformationMatrix) +		sizeof(glm::vec4),	vk::Format::eR32G32B32Sfloat,	avk::content_description::user_defined_02)
-				.describe_member(offsetof(meshlet, mTransformationMatrix) + 2 * sizeof(glm::vec4),	vk::Format::eR32G32B32Sfloat,	avk::content_description::user_defined_03)
-				.describe_member(offsetof(meshlet, mTransformationMatrix) + 3 * sizeof(glm::vec4),	vk::Format::eR32G32B32Sfloat,	avk::content_description::user_defined_04)
+				.describe_member(offsetof(meshlet, mModelMatrix), vk::Format::eR32G32B32Sfloat, avk::content_description::user_defined_01)
+				.describe_member(offsetof(meshlet, mModelMatrix) + sizeof(glm::vec4), vk::Format::eR32G32B32Sfloat, avk::content_description::user_defined_02)
+				.describe_member(offsetof(meshlet, mModelMatrix) + 2 * sizeof(glm::vec4), vk::Format::eR32G32B32Sfloat, avk::content_description::user_defined_03)
+				.describe_member(offsetof(meshlet, mModelMatrix) + 3 * sizeof(glm::vec4), vk::Format::eR32G32B32Sfloat, avk::content_description::user_defined_04)
 				// mesh pos, texelbuffer and meshopt_Meshlet
-				.describe_member(offsetof(meshlet, mMeshPos),										vk::Format::eR32Uint,			avk::content_description::user_defined_05)
-				.describe_member(offsetof(meshlet, mModelIndex),									vk::Format::eR32Uint,			avk::content_description::user_defined_06)
-				.describe_member(offsetof(meshlet, mTexelBufferIndex),								vk::Format::eR32Uint,			avk::content_description::user_defined_07)
-				.describe_member(offsetof(meshlet, mGeometry),										vk::Format::eR32Uint,			avk::content_description::user_defined_08)
-		);
-		mMeshletsBuffer->fill(meshlets.data(), 0, avk::sync::wait_idle(true));
-		mNumMeshletWorkgroups = meshlets.size();
+				.describe_member(offsetof(meshlet, mMeshPos), vk::Format::eR32Uint, avk::content_description::user_defined_05)
+				.describe_member(offsetof(meshlet, mModelIndex), vk::Format::eR32Uint, avk::content_description::user_defined_06)
+				.describe_member(offsetof(meshlet, mTexelBufferIndex), vk::Format::eR32Uint, avk::content_description::user_defined_07)
+				.describe_member(offsetof(meshlet, mGeometry), vk::Format::eR32Uint, avk::content_description::user_defined_08)
+			);
+			mMeshletsBuffer->fill(meshlets.data(), 0, avk::sync::wait_idle(true));
+			mNumMeshletWorkgroups = meshlets.size();
+		}
 
 		auto [gpuMaterials, imageSamplers] = gvk::convert_for_gpu_usage(
 			allMatConfigs, false, true,
@@ -258,6 +237,41 @@ public:
 				)
 			);
 		}
+
+		mDrawCount = 20;
+		float sceneRadius = 30;
+		float sceneDistance = 20;
+		srand(42);
+
+		for (uint32_t i = 0; i < mDrawCount; i++)
+		{
+			auto& meshTransform = mMeshTransforms.emplace_back();
+
+			glm::vec3 position;
+			position.x = (float(rand()) / RAND_MAX) * sceneRadius * 2 - sceneRadius;
+			position.y = (float(rand()) / RAND_MAX) * sceneRadius * 2 - sceneRadius;
+			position.z = (float(rand()) / RAND_MAX) * sceneRadius * 2 - sceneRadius;
+
+			float scale = ((float(rand()) / RAND_MAX) + 1) * 0.1;
+
+			glm::vec3 axis((float(rand()) / RAND_MAX) * 2 - 1, (float(rand()) / RAND_MAX) * 2 - 1, (float(rand()) / RAND_MAX) * 2 - 1);
+			float angle = glm::radians((float(rand()) / RAND_MAX) * 90.0f);
+
+			glm::quat orientation = glm::rotate(glm::quat(1, 0, 0, 0), angle, axis);
+
+			meshTransform.transformationMatrix = glm::translate(position) * glm::toMat4(orientation) * glm::scale(glm::vec3(scale));
+		}
+
+		mMeshDrawBuffer = gvk::context().create_buffer(
+			avk::memory_usage::device, vk::BufferUsageFlagBits::eIndirectBuffer,
+			avk::storage_buffer_meta::create_from_data(mMeshTransforms),
+			avk::instance_buffer_meta::create_from_data(mMeshTransforms)
+			.describe_member(offsetof(MeshDraw, transformationMatrix),							vk::Format::eR32G32B32Sfloat, avk::content_description::user_defined_01)
+			.describe_member(offsetof(MeshDraw, transformationMatrix) + sizeof(glm::vec4),		vk::Format::eR32G32B32Sfloat, avk::content_description::user_defined_02)
+			.describe_member(offsetof(MeshDraw, transformationMatrix) + 2 * sizeof(glm::vec4),	vk::Format::eR32G32B32Sfloat, avk::content_description::user_defined_03)
+			.describe_member(offsetof(MeshDraw, transformationMatrix) + 3 * sizeof(glm::vec4),	vk::Format::eR32G32B32Sfloat, avk::content_description::user_defined_04)
+		);		
+		mMeshDrawBuffer->fill(mMeshTransforms.data(), 0, avk::sync::wait_idle(true));
 
 		// setup lights
 		std::vector<gvk::lightsource> lights;
@@ -292,7 +306,9 @@ public:
 			avk::descriptor_binding(2, 1, avk::as_uniform_texel_buffer_views(mIndexBuffers)),
 			avk::descriptor_binding(2, 2, avk::as_uniform_texel_buffer_views(mNormalBuffers)),
 			avk::descriptor_binding(2, 3, avk::as_uniform_texel_buffer_views(mTexCoordsBuffers)),
-			avk::descriptor_binding(2, 4, mMeshletsBuffer)
+			avk::descriptor_binding(2, 4, mMeshletsBuffer),
+			avk::descriptor_binding(3, 1, mMeshDrawBuffer),
+			avk::push_constant_binding_data{ avk::shader_type::mesh, 0, sizeof(push_constants_for_mesh_shader) }
 		);
 
 		mCam.set_translation({ 0.0f, 0.0f, 5.0f });
@@ -367,14 +383,20 @@ public:
 			avk::descriptor_binding(2, 1, avk::as_uniform_texel_buffer_views(mIndexBuffers)),
 			avk::descriptor_binding(2, 2, avk::as_uniform_texel_buffer_views(mNormalBuffers)),
 			avk::descriptor_binding(2, 3, avk::as_uniform_texel_buffer_views(mTexCoordsBuffers)),
-			avk::descriptor_binding(2, 4, mMeshletsBuffer)
+			avk::descriptor_binding(2, 4, mMeshletsBuffer),
+			avk::descriptor_binding(3, 1, mMeshDrawBuffer)
 		}));
 
 		// numMeshletWorkgroups / 32 + 1 -> plus 1 because of rounding
-		cmdBfr->handle().drawMeshTasksNV(mNumMeshletWorkgroups / 32 + 1, 0, gvk::context().dynamic_dispatch());
+		for (int i = 0; i < mDrawCount; i++)
+		{
+			cmdBfr->push_constants(mPipeline->layout(), push_constants_for_mesh_shader{ i });
+			cmdBfr->handle().drawMeshTasksNV(mNumMeshletWorkgroups / 32 + 1, 0, gvk::context().dynamic_dispatch());
+		}
 
-		//cmdBfr->handle().drawMeshTasksIndirectNV()
-
+		// Buffer buffer, DeviceSize offset, Buffer countBuffer, DeviceSize countBufferOffset, uint32_t maxDrawCount, uint32_t stride
+		//cmdBfr->handle().drawMeshTasksIndirectCountNV(mDrawCallBuffer.get().handle(), offsetof(MeshDrawCommand, indirectMS), mDrawCallCountBuffer.get().handle(),
+		//	static_cast<uint32_t>(0), static_cast<uint32_t>(mMeshTransforms.size()), static_cast<uint32_t>(sizeof(MeshDrawCommand)));
 
 		cmdBfr->end_render_pass();
 		cmdBfr->end_recording();
@@ -392,10 +414,16 @@ private:
 
 	avk::queue* mQueue;
 	avk::graphics_pipeline mPipeline;
-
-	avk::buffer mDrawtaskBuffer;
 	gvk::quake_camera mCam;
-	std::vector<drawtask> mDrawTasks;
+
+	avk::buffer mDrawCallBuffer;
+	avk::buffer mDrawCallCountBuffer;
+
+	std::vector<MeshDraw> mMeshTransforms;
+	uint32_t mDrawCount;
+
+	avk::buffer mMeshDrawBuffer;
+
 	std::vector<avk::buffer> mViewProjBuffers;
 	avk::descriptor_cache mDescriptorCache;
 	std::vector<data_for_draw_call> mDrawCalls;
@@ -418,7 +446,7 @@ int main() // <== Starting point ==
 	try {
 		// Create a window and open it
 		auto mainWnd = gvk::context().create_window("LOD Mesh Shaders");
-		mainWnd->set_resolution({ 1600, 900 });
+		mainWnd->set_resolution({ 1920, 1080 });
 		mainWnd->enable_resizing(true);
 		mainWnd->set_additional_back_buffer_attachments({
 			avk::attachment::declare(vk::Format::eD32Sfloat, avk::on_load::clear, avk::depth_stencil(), avk::on_store::dont_care)
@@ -446,6 +474,7 @@ int main() // <== Starting point ==
 			[](vk::PhysicalDeviceVulkan12Features& features) {
 			features.setUniformAndStorageBuffer8BitAccess(VK_TRUE);
 			features.setStorageBuffer8BitAccess(VK_TRUE);
+			features.setDrawIndirectCount(VK_TRUE);
 		},
 			mainWnd,
 			app,
