@@ -13,8 +13,12 @@
 #define MESHOPT_MAX_VERTICES 64
 #define MESHOPT_MAX_TRIANGLES 124
 
-layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = 1) in;
 layout(triangles, max_vertices = 64, max_primitives = 124) out;
+
+in taskNV block {
+	uint meshletOffset;
+};
 
 layout(set = 0, binding = 1) uniform CameraTransform
 {
@@ -69,8 +73,12 @@ vec3 meshletcolors[MAX_COLORS] = {
   vec3(1,1,1)
 };
 
+layout (push_constant) uniform ModelMatrix {
+	mat4 mTransformation;
+} PushConstant;
+
 void main() {
-    uint meshlet_index = gl_WorkGroupID.x;
+    uint meshlet_index = gl_WorkGroupID.x + meshletOffset;
 
 	uint vertexCount = uint(meshletsBuffer.values[meshlet_index].mGeometry.vertex_count);
 	uint triangleCount = uint(meshletsBuffer.values[meshlet_index].mGeometry.triangle_count);

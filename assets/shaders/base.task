@@ -1,0 +1,54 @@
+#version 460
+#extension GL_EXT_shader_16bit_storage: require
+#extension GL_EXT_shader_8bit_storage: require
+#extension GL_NV_mesh_shader : require
+#extension GL_EXT_nonuniform_qualifier : require
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_ARB_shader_draw_parameters: require
+
+#define MESH_MAX_VERTICES 64
+#define MESH_MAX_INDICES 378
+#define MESH_MAX_INDICES_PADDED 380
+
+#define MESHOPT_MAX_VERTICES 64
+#define MESHOPT_MAX_TRIANGLES 124
+
+layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+
+struct meshopt_Meshlet
+{
+	uint vertices[64];
+	uint8_t indices[126][3];
+	uint8_t triangle_count;
+	uint8_t vertex_count;
+};
+
+struct meshlet
+{
+	mat4 mTransformationMatrix;
+	uint mMaterialIndex;
+	uint mTexelBufferIndex;
+	uint mModelIndex;
+	uint mMeshPos;
+
+	meshopt_Meshlet mGeometry;
+};
+
+
+layout(set = 2, binding = 4) buffer	 MeshletsBuffer { meshlet values[]; } meshletsBuffer;
+
+out taskNV block {
+	uint meshletOffset;
+};
+
+void main()
+{
+	uint mi = gl_WorkGroupID.x;
+	uint ti = gl_LocalInvocationID.x;
+
+	if (ti == 0)
+	{
+		meshletOffset = mi * 32;
+		gl_TaskCountNV = 32;
+	}
+}

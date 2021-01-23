@@ -92,5 +92,5 @@ layout (location = 0) in PerVertexData
 layout (location = 0) out vec4 fs_out;
 
 void main() {
-    fs_out = vec4(v_in.color, 1.0);
+    fs_out = vec4(v_in.normalWS, 1.0);
 }

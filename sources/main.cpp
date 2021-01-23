@@ -5,10 +5,16 @@
 
 class lod_mesh_shader : public gvk::invokee
 {
-	struct camera_data
+	struct alignas(16) camera_data
 	{
 		glm::mat4 mViewProjMatrix;
 		glm::vec4 mCamPos;
+	};
+
+	struct alignas(16) drawtask
+	{
+		glm::vec4 mPos;
+		glm::mat4 mTransformation;
 	};
 
 	struct alignas(16) meshlet
@@ -38,7 +44,12 @@ class lod_mesh_shader : public gvk::invokee
 		int32_t _padding2;
 	};
 
-public: // v== cgb::invokee overrides which will be invoked by the framework ==v
+	struct data_per_instance
+	{
+		glm::mat4 mTransformation;
+	};
+
+public: 
 	lod_mesh_shader(avk::queue& aQueue) : mQueue{ &aQueue }
 	{}
 
@@ -63,8 +74,9 @@ public: // v== cgb::invokee overrides which will be invoked by the framework ==v
 		return static_cast<size_t>(ifi * (2 * aMaxQueryIndices) + std::abs(pingpong % 2) * aMaxQueryIndices + aQueryIndex);
 	}
 
-	void initialize() override
+	void initialize() override	
 	{
+		auto& dt1 = mDrawTasks.emplace_back();
 		mDescriptorCache = gvk::context().create_descriptor_cache();
 
 		std::vector<gvk::material_config> allMatConfigs;	// save all materials
@@ -186,6 +198,31 @@ public: // v== cgb::invokee overrides which will be invoked by the framework ==v
 			mTexCoordsBuffers.push_back(gvk::context().create_buffer_view(shared(draw_call.mTexCoordsBuffer)));
 		}
 
+		std::vector<drawtask> drawTasks;
+
+		auto& dt = drawTasks.emplace_back();
+		memset(&dt, 0, sizeof(drawtask));
+		dt.mPos = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+		dt.mTransformation = glm::mat4(1.0f);
+
+		auto& dt2 = drawTasks.emplace_back();
+		memset(&dt2, 0, sizeof(drawtask));
+		dt2.mPos = glm::vec4(3.0f, 0.0f, 0.0f, 1.0f);
+		dt2.mTransformation = glm::translate(glm::vec3(3.0f, 0.0f, 0.0f));
+		
+		mDrawtaskBuffer = gvk::context().create_buffer(
+			avk::memory_usage::device, {},
+			avk::storage_buffer_meta::create_from_data(drawTasks),
+			avk::instance_buffer_meta::create_from_data(drawTasks)
+				.describe_member(offsetof(drawtask, mPos),										vk::Format::eR32G32B32Sfloat, avk::content_description::user_defined_01)
+				.describe_member(offsetof(drawtask, mTransformation),							vk::Format::eR32G32B32Sfloat, avk::content_description::user_defined_02)
+				.describe_member(offsetof(drawtask, mTransformation) + sizeof(glm::vec4),		vk::Format::eR32G32B32Sfloat, avk::content_description::user_defined_03)
+				.describe_member(offsetof(drawtask, mTransformation) + 2 * sizeof(glm::vec4),	vk::Format::eR32G32B32Sfloat, avk::content_description::user_defined_04)
+				.describe_member(offsetof(drawtask, mTransformation) + 3 * sizeof(glm::vec4),	vk::Format::eR32G32B32Sfloat, avk::content_description::user_defined_05)
+		);
+		mDrawtaskBuffer->fill(drawTasks.data(), 0, avk::sync::wait_idle(true));
+		mNumTaskWorkgroups = drawTasks.size();
+
 		// 
 		mMeshletsBuffer = gvk::context().create_buffer(
 			avk::memory_usage::device, {},
@@ -240,6 +277,7 @@ public: // v== cgb::invokee overrides which will be invoked by the framework ==v
 		mImageSamplers = std::move(imageSamplers);
 
 		mPipeline = gvk::context().create_graphics_pipeline_for(
+			avk::task_shader("shaders/base.task"),
 			avk::mesh_shader("shaders/base.mesh"),
 			avk::fragment_shader("shaders/base.frag"),
 			avk::cfg::front_face::define_front_faces_to_be_counter_clockwise(),
@@ -257,7 +295,7 @@ public: // v== cgb::invokee overrides which will be invoked by the framework ==v
 			avk::descriptor_binding(2, 4, mMeshletsBuffer)
 		);
 
-		mCam.set_translation({ 0.0f, 0.0f, 2.0f });
+		mCam.set_translation({ 0.0f, 0.0f, 5.0f });
 		mCam.set_perspective_projection(glm::radians(60.0f), gvk::context().main_window()->aspect_ratio(), 0.03f, 1000.0f);
 		gvk::current_composition()->add_element(mCam);
 
@@ -268,6 +306,14 @@ public: // v== cgb::invokee overrides which will be invoked by the framework ==v
 				ImGui::SetWindowPos(ImVec2(1.0f, 1.0f), ImGuiCond_FirstUseEver);
 				ImGui::Text("%.3f ms/frame", 1000.0f / ImGui::GetIO().Framerate);
 				ImGui::Text("%.1f FPS", ImGui::GetIO().Framerate);
+
+				static std::vector<float> values;
+				values.push_back(1000.0f / ImGui::GetIO().Framerate);
+				if (values.size() > 90) {
+					values.erase(values.begin());
+				}
+				ImGui::PlotLines("ms/frame", values.data(), values.size(), 0, nullptr, 0.0f, FLT_MAX, ImVec2(0.0f, 100.0f));
+				ImGui::End();
 			});
 		}
 	}
@@ -324,7 +370,12 @@ public: // v== cgb::invokee overrides which will be invoked by the framework ==v
 			avk::descriptor_binding(2, 4, mMeshletsBuffer)
 		}));
 
-		cmdBfr->handle().drawMeshTasksNV(mNumMeshletWorkgroups, 0, gvk::context().dynamic_dispatch());
+		// numMeshletWorkgroups / 32 + 1 -> plus 1 because of rounding
+		cmdBfr->handle().drawMeshTasksNV(mNumMeshletWorkgroups / 32 + 1, 0, gvk::context().dynamic_dispatch());
+
+		//cmdBfr->handle().drawMeshTasksIndirectNV()
+
+
 		cmdBfr->end_render_pass();
 		cmdBfr->end_recording();
 
@@ -337,20 +388,23 @@ public: // v== cgb::invokee overrides which will be invoked by the framework ==v
 		mainWnd->handle_lifetime(std::move(cmdBfr));
 	}
 
-private: // v== Member variables ==v
+private:
 
 	avk::queue* mQueue;
 	avk::graphics_pipeline mPipeline;
 
+	avk::buffer mDrawtaskBuffer;
 	gvk::quake_camera mCam;
+	std::vector<drawtask> mDrawTasks;
 	std::vector<avk::buffer> mViewProjBuffers;
 	avk::descriptor_cache mDescriptorCache;
 	std::vector<data_for_draw_call> mDrawCalls;
 	avk::buffer mLightBuffer;
 	avk::buffer mMaterialBuffer;
 	std::vector<avk::image_sampler> mImageSamplers;
-
 	avk::buffer mMeshletsBuffer;
+
+	uint32_t mNumTaskWorkgroups;
 	uint32_t mNumMeshletWorkgroups;
 
 	std::vector<avk::buffer_view> mPositionBuffers;

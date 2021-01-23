@@ -39,9 +39,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="assets\asteroid_01.fbx" />
-    <None Include="assets\cube.fbx" />
     <None Include="assets\shaders\base.frag" />
     <None Include="assets\shaders\base.mesh" />
+    <None Include="assets\shaders\base.task" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>
