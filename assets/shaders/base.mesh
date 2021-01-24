@@ -61,12 +61,11 @@ vec3 meshletcolors[MAX_COLORS] = {
 
 void main() {
 
-	uint offsets[] = {0, 9, 11, 12};
-	uint size[] = {9, 2, 1, 1};
+	uint offsets[] = {0, 975, 1068, 1078};
+	uint size[] = {975, 93, 10, 1};
 
-	int lod = 0;
+	//int lod = 0;
     uint meshlet_index = gl_WorkGroupID.x + meshletOffset + offsets[lod];
-
 
 	if (meshlet_index > offsets[lod] + size[lod])
 	{

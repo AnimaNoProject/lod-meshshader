@@ -55,6 +55,7 @@ class lod_mesh_shader : public gvk::invokee
 
 	struct push_constants_for_mesh_shader {
 		int mModelId;
+		int lod;
 	};
 
 	struct lod_info
@@ -91,6 +92,7 @@ public:
 	void initialize() override	
 	{
 		wireframe = false;
+		lod = true;
 
 		mDescriptorCache = gvk::context().create_descriptor_cache();
 
@@ -98,10 +100,10 @@ public:
 		std::vector<meshlet> meshlets;						// save all meshlets
 
 		std::vector<gvk::model> asteroids;
-		asteroids.push_back(gvk::model_t::load_from_file("assets/box_01.fbx", aiProcess_Triangulate));
-		//asteroids.push_back(gvk::model_t::load_from_file("assets/box_02.fbx", aiProcess_Triangulate));
-		//asteroids.push_back(gvk::model_t::load_from_file("assets/box_03.fbx", aiProcess_Triangulate));
-		//asteroids.push_back(gvk::model_t::load_from_file("assets/box_04.fbx", aiProcess_Triangulate));
+		asteroids.push_back(gvk::model_t::load_from_file("assets/asteroid_01.fbx", aiProcess_Triangulate));
+		asteroids.push_back(gvk::model_t::load_from_file("assets/asteroid_02.fbx", aiProcess_Triangulate));
+		asteroids.push_back(gvk::model_t::load_from_file("assets/asteroid_03.fbx", aiProcess_Triangulate));
+		asteroids.push_back(gvk::model_t::load_from_file("assets/asteroid_04.fbx", aiProcess_Triangulate));
 
 
 		auto& asteroid = asteroids[0];
@@ -164,6 +166,12 @@ public:
 			std::swap(indices, remapped_indices);
 			std::swap(positions, remapped_positions);
 
+			// add offset to the indices
+			for (size_t i = 0; i < indices.size(); i++)
+			{
+				indices[i] += combinedOffset;
+			}
+
 			std::vector<meshopt_Meshlet> meshopt_meshlets(meshopt_buildMeshletsBound(indices.size(), 64, 124));
 			auto offset = meshopt_buildMeshlets(meshopt_meshlets.data(), indices.data(), indices.size(), positions.size(), 64, 124);
 			meshopt_meshlets.resize(offset);
@@ -171,7 +179,6 @@ public:
 			l.lodOffsets[index] = offsetMeshlets;
 			offsetMeshlets += meshopt_meshlets.size();
 			l.lodMeshletSize[index] = meshopt_meshlets.size();
-			index += 1;
 
 			for (auto& meshoptMeshlet : meshopt_meshlets)
 			{
@@ -180,10 +187,11 @@ public:
 
 				ml.mModelMatrix = draw_call.mModelMatrix;
 				ml.mMaterialIndex = draw_call.mMaterialIndex;
-				ml.mTexelBufferIndex = static_cast<uint32_t>(0);
+				ml.mTexelBufferIndex = static_cast<uint32_t>(index);
 				ml.mMeshPos = static_cast<uint32_t>(draw_call.mMeshPos);
 				ml.mGeometry = meshoptMeshlet;
 			}
+			index += 1;
 
 			auto normals = gvk::get_normals(selection);
 			auto texCoords = gvk::get_2d_texture_coordinates(selection, 0);
@@ -197,49 +205,36 @@ public:
 			std::swap(normals, remappedNormals);
 			std::swap(texCoords, remappedTexCoords);
 
-			// add offset to the indices
-			for (size_t i = 0; i < indices.size(); i++)
-			{
-				indices[i] += combinedOffset;
-			}
+			draw_call.mPositionsBuffer = gvk::context().create_buffer(avk::memory_usage::device, {},
+				avk::vertex_buffer_meta::create_from_data(positions).describe_only_member(positions[0], avk::content_description::position),
+				avk::storage_buffer_meta::create_from_data(positions),
+				avk::uniform_texel_buffer_meta::create_from_data(positions).describe_only_member(positions[0]));
 
-			allLodPositions.insert(std::end(allLodPositions), std::begin(positions), std::end(positions));
-			allLodIndices.insert(std::end(allLodIndices), std::begin(indices), std::end(indices));
-			allLodNormals.insert(std::end(allLodNormals), std::begin(normals), std::end(normals));
-			allLodTexCoords.insert(std::end(allLodTexCoords), std::begin(texCoords), std::end(texCoords));
+			draw_call.mIndexBuffer = gvk::context().create_buffer(avk::memory_usage::device, {},
+				avk::index_buffer_meta::create_from_data(indices),
+				avk::storage_buffer_meta::create_from_data(indices),
+				avk::uniform_texel_buffer_meta::create_from_data(indices).set_format<glm::uvec3>()); // uvec3 => uint32_t
 
-			combinedOffset += indices.size();
+			draw_call.mNormalsBuffer = gvk::context().create_buffer(avk::memory_usage::device, {},
+				avk::vertex_buffer_meta::create_from_data(normals),
+				avk::storage_buffer_meta::create_from_data(normals),
+				avk::uniform_texel_buffer_meta::create_from_data(normals).describe_only_member(normals[0]));
+
+			draw_call.mTexCoordsBuffer = gvk::context().create_buffer(avk::memory_usage::device, {},
+				avk::vertex_buffer_meta::create_from_data(texCoords),
+				avk::storage_buffer_meta::create_from_data(texCoords),
+				avk::uniform_texel_buffer_meta::create_from_data(texCoords).describe_only_member(texCoords[0]));
+
+			draw_call.mPositionsBuffer->fill(positions.data(), 0, avk::sync::wait_idle(true));
+			draw_call.mIndexBuffer->fill(indices.data(), 0, avk::sync::wait_idle(true));
+			draw_call.mNormalsBuffer->fill(normals.data(), 0, avk::sync::wait_idle(true));
+			draw_call.mTexCoordsBuffer->fill(texCoords.data(), 0, avk::sync::wait_idle(true));
+
+			mPositionBuffers.push_back(gvk::context().create_buffer_view(shared(draw_call.mPositionsBuffer)));
+			mIndexBuffers.push_back(gvk::context().create_buffer_view(shared(draw_call.mIndexBuffer)));
+			mNormalBuffers.push_back(gvk::context().create_buffer_view(shared(draw_call.mNormalsBuffer)));
+			mTexCoordsBuffers.push_back(gvk::context().create_buffer_view(shared(draw_call.mTexCoordsBuffer)));
 		}
-
-		draw_call.mPositionsBuffer	= gvk::context().create_buffer(avk::memory_usage::device, {},
-			avk::vertex_buffer_meta::create_from_data(allLodPositions).describe_only_member(allLodPositions[0], avk::content_description::position),
-			avk::storage_buffer_meta::create_from_data(allLodPositions),
-			avk::uniform_texel_buffer_meta::create_from_data(allLodPositions).describe_only_member(allLodPositions[0]));
-
-		draw_call.mIndexBuffer = gvk::context().create_buffer(avk::memory_usage::device, {},
-			avk::index_buffer_meta::create_from_data(allLodIndices),
-			avk::storage_buffer_meta::create_from_data(allLodIndices),
-			avk::uniform_texel_buffer_meta::create_from_data(allLodIndices).set_format<glm::uvec3>()); // uvec3 => uint32_t
-
-		draw_call.mNormalsBuffer = gvk::context().create_buffer(avk::memory_usage::device, {},
-			avk::vertex_buffer_meta::create_from_data(allLodNormals),
-			avk::storage_buffer_meta::create_from_data(allLodNormals),
-			avk::uniform_texel_buffer_meta::create_from_data(allLodNormals).describe_only_member(allLodNormals[0]));
-
-		draw_call.mTexCoordsBuffer = gvk::context().create_buffer(avk::memory_usage::device, {},
-			avk::vertex_buffer_meta::create_from_data(allLodTexCoords),
-			avk::storage_buffer_meta::create_from_data(allLodTexCoords),
-			avk::uniform_texel_buffer_meta::create_from_data(allLodTexCoords).describe_only_member(allLodTexCoords[0]));
-
-		draw_call.mPositionsBuffer->fill(allLodPositions.data(), 0, avk::sync::wait_idle(true));
-		draw_call.mIndexBuffer->fill(allLodIndices.data(), 0, avk::sync::wait_idle(true));
-		draw_call.mNormalsBuffer->fill(allLodNormals.data(), 0, avk::sync::wait_idle(true));
-		draw_call.mTexCoordsBuffer->fill(allLodTexCoords.data(), 0, avk::sync::wait_idle(true));
-
-		mPositionBuffers.push_back(gvk::context().create_buffer_view(shared(draw_call.mPositionsBuffer)));
-		mIndexBuffers.push_back(gvk::context().create_buffer_view(shared(draw_call.mIndexBuffer)));
-		mNormalBuffers.push_back(gvk::context().create_buffer_view(shared(draw_call.mNormalsBuffer)));
-		mTexCoordsBuffers.push_back(gvk::context().create_buffer_view(shared(draw_call.mTexCoordsBuffer)));
 
 		{
 			mMeshletsBuffer = gvk::context().create_buffer(
@@ -395,6 +390,7 @@ public:
 				ImGui::TextColored(ImVec4(0.f, .6f, .8f, 1.f), "[F1]: Toggle input-mode");
 				ImGui::TextColored(ImVec4(0.f, .6f, .8f, 1.f), " (UI vs. scene navigation)");
 				ImGui::Checkbox("Wireframe", &wireframe);
+				ImGui::Checkbox("LOD", &lod);
 				ImGui::End();
 			});
 		}
@@ -458,7 +454,7 @@ public:
 		// numMeshletWorkgroups / 32 + 1 -> plus 1 because of rounding
 		for (int i = 0; i < mDrawCount; i++)
 		{
-			cmdBfr->push_constants(mPipeline->layout(), push_constants_for_mesh_shader{ i });
+			cmdBfr->push_constants(mPipeline->layout(), push_constants_for_mesh_shader{ i, static_cast<int>(lod) });
 			cmdBfr->handle().drawMeshTasksNV(mNumMeshletWorkgroups / 32 + 1, 0, gvk::context().dynamic_dispatch());
 		}
 
@@ -496,6 +492,7 @@ private:
 	uint32_t mDrawCount;
 
 	bool wireframe;
+	bool lod;
 
 	avk::buffer mMeshDrawBuffer;
 
