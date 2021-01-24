@@ -19,12 +19,8 @@ struct meshlet
 
 struct MeshDraw
 {
-	vec3 position;
-	float scale;
-	vec4 orientation;
-
-	uint meshIndex;
-	uint vertexOffset; // == meshes[meshIndex].vertexOffset, helps data locality in mesh shader
+	mat4 transformationMatrix;
+	vec4 position;
 };
 
 struct MeshDrawCommand
@@ -38,8 +34,3 @@ struct MeshDrawCommand
 	uint taskCount;
 	uint firstTask;
 };
-
-vec3 rotateQuat(vec3 v, vec4 q)
-{
-	return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v);
-}

@@ -20,8 +20,9 @@ layout(triangles, max_vertices = 64, max_primitives = 124) out;
 
 in taskNV block {
 	uint meshletOffset;
-	int lod;
-	int mModelId;
+	uint lod;
+	uint mModelId;
+	uint _placeholder;
 };
 
 layout(set = 0, binding = 1) uniform CameraTransform
@@ -59,7 +60,19 @@ vec3 meshletcolors[MAX_COLORS] = {
 };
 
 void main() {
-    uint meshlet_index = gl_WorkGroupID.x + meshletOffset;
+
+	uint offsets[] = {0, 9, 11, 12};
+	uint size[] = {9, 2, 1, 1};
+
+	int lod = 0;
+    uint meshlet_index = gl_WorkGroupID.x + meshletOffset + offsets[lod];
+
+
+	if (meshlet_index > offsets[lod] + size[lod])
+	{
+		gl_PrimitiveCountNV = 0;
+		return;
+	}
 
 	uint vertexCount = uint(meshletsBuffer.values[meshlet_index].mGeometry.vertex_count);
 	uint triangleCount = uint(meshletsBuffer.values[meshlet_index].mGeometry.triangle_count);
@@ -81,7 +94,7 @@ void main() {
 		vec3 normal = texelFetch(normalBuffers[texelBufferIndex], int(vertex_index)).xyz;
 		vec2 tex = texelFetch(texCoordsBuffers[texelBufferIndex], int(vertex_index)).st;
 
-		vec4 posWS = vec4(rotateQuat(vec3(modelMatrix * pos), meshDraw.orientation) * meshDraw.scale + meshDraw.position, 1);
+		vec4 posWS = meshDraw.transformationMatrix * modelMatrix * pos;
 		gl_MeshVerticesNV[i].gl_Position = ubo.mViewProjMatrix * posWS;
 		v_out[i].positionWS = posWS.xyz;
 		v_out[i].normalWS = mat3(modelMatrix) * normal;

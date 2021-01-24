@@ -81,6 +81,27 @@
     <None Include="assets\shaders\base.task">
       <Filter>shaders</Filter>
     </None>
+    <None Include="assets\asteroid_02.fbx">
+      <Filter>assets</Filter>
+    </None>
+    <None Include="assets\asteroid_03.fbx">
+      <Filter>assets</Filter>
+    </None>
+    <None Include="assets\asteroid_04.fbx">
+      <Filter>assets</Filter>
+    </None>
+    <None Include="assets\box_01.fbx">
+      <Filter>assets</Filter>
+    </None>
+    <None Include="assets\box_02.fbx">
+      <Filter>assets</Filter>
+    </None>
+    <None Include="assets\box_03.fbx">
+      <Filter>assets</Filter>
+    </None>
+    <None Include="assets\box_04.fbx">
+      <Filter>assets</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="assets\shaders\definitions.h">
