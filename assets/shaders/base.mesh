@@ -99,7 +99,7 @@ void main() {
 		v_out[i].normalWS = mat3(modelMatrix) * normal;
 		v_out[i].texCoord = tex;
 		v_out[i].materialIndex = int(materialIndex);
-		v_out[i].color = meshletcolors[lod];//meshletcolors[meshlet_index % MAX_COLORS];
+		v_out[i].color = meshletcolors[lod];
 	}
 
 	gl_PrimitiveCountNV = triangleCount;

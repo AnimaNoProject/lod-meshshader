@@ -55,7 +55,8 @@ class lod_mesh_shader : public gvk::invokee
 
 	struct push_constants_for_mesh_shader {
 		int mModelId;
-		int lod;
+		int mLODEnabled;
+		float mLODFactor;
 	};
 
 	struct lod_info
@@ -91,8 +92,10 @@ public:
 
 	void initialize() override	
 	{
-		wireframe = false;
-		lod = true;
+		mWireframe = false;
+		mLODEnabled = true;
+		mLODFactor = 1;
+		mDrawCount = 500;
 
 		mDescriptorCache = gvk::context().create_descriptor_cache();
 
@@ -273,11 +276,10 @@ public:
 			);
 		}
 
-		mDrawCount = 2000;
 		float sceneRadius = 100;
 		srand(100);
 
-		for (uint32_t i = 0; i < mDrawCount; i++)
+		for (uint32_t i = 0; i < mMaxDrawCount; i++)
 		{
 			auto& meshTransform = mMeshTransforms.emplace_back();
 
@@ -389,8 +391,10 @@ public:
 				ImGui::PlotLines("ms/frame", values.data(), values.size(), 0, nullptr, 0.0f, FLT_MAX, ImVec2(0.0f, 100.0f));
 				ImGui::TextColored(ImVec4(0.f, .6f, .8f, 1.f), "[F1]: Toggle input-mode");
 				ImGui::TextColored(ImVec4(0.f, .6f, .8f, 1.f), " (UI vs. scene navigation)");
-				ImGui::Checkbox("Wireframe", &wireframe);
-				ImGui::Checkbox("LOD", &lod);
+				ImGui::SliderInt("Objects", &mDrawCount, 1, mMaxDrawCount);
+				ImGui::Checkbox("Wireframe", &mWireframe);
+				ImGui::Checkbox("LOD", &mLODEnabled);
+				ImGui::SliderFloat("LOD swap", &mLODFactor, 0.1f, 3.0f);
 				ImGui::End();
 			});
 		}
@@ -398,9 +402,7 @@ public:
 
 	void update() override
 	{
-		// On Esc pressed,
 		if (gvk::input().key_pressed(gvk::key_code::escape)) {
-			// stop the current composition:
 			gvk::current_composition()->stop();
 		}
 		if (gvk::input().key_pressed(gvk::key_code::f1)) {
@@ -430,12 +432,10 @@ public:
 		auto& commandPool = gvk::context().get_command_pool_for_single_use_command_buffers(*mQueue);
 		auto cmdBfr = commandPool->alloc_command_buffer(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
 
-		auto& boundpipeline = (wireframe) ? mWireframePipeline : mPipeline;
+		auto& boundpipeline = (mWireframe) ? mWireframePipeline : mPipeline;
 
 		cmdBfr->begin_recording();
-		// directly to the window
 		cmdBfr->begin_render_pass_for_framebuffer(boundpipeline->get_renderpass(), gvk::context().main_window()->current_backbuffer());
-		// bind the pipeline
 		cmdBfr->bind_pipeline(const_referenced(boundpipeline));
 		cmdBfr->bind_descriptors(boundpipeline->layout(),
 			mDescriptorCache.get_or_create_descriptor_sets({
@@ -454,7 +454,7 @@ public:
 		// numMeshletWorkgroups / 32 + 1 -> plus 1 because of rounding
 		for (int i = 0; i < mDrawCount; i++)
 		{
-			cmdBfr->push_constants(mPipeline->layout(), push_constants_for_mesh_shader{ i, static_cast<int>(lod) });
+			cmdBfr->push_constants(mPipeline->layout(), push_constants_for_mesh_shader{ i, static_cast<int>(mLODEnabled), mLODFactor });
 			cmdBfr->handle().drawMeshTasksNV(mNumMeshletWorkgroups / 32 + 1, 0, gvk::context().dynamic_dispatch());
 		}
 
@@ -467,11 +467,7 @@ public:
 		cmdBfr->end_render_pass();
 		cmdBfr->end_recording();
 
-		// The swap chain provides us with an "image available semaphore" for the current frame.
-		// Only after the swapchain image has become available, we may start rendering into it.
 		auto imageAvailableSemaphore = mainWnd->consume_current_image_available_semaphore();
-
-		// Submit the draw call and take care of the command buffer's lifetime:
 		mQueue->submit(cmdBfr, imageAvailableSemaphore);
 		mainWnd->handle_lifetime(std::move(cmdBfr));
 	}
@@ -479,29 +475,29 @@ public:
 private:
 
 	avk::queue* mQueue;
+	avk::descriptor_cache mDescriptorCache;
 	avk::graphics_pipeline mPipeline;
 	avk::graphics_pipeline mWireframePipeline;
-
-
 	gvk::quake_camera mCam;
+
+	bool mWireframe;
+	bool mLODEnabled;
+	float mLODFactor;
+	const uint32_t mMaxDrawCount = 2000;
+	int mDrawCount;
+
+	std::vector<MeshDraw> mMeshTransforms;
+	std::vector<data_for_draw_call> mDrawCalls;
+
+	std::vector<avk::image_sampler> mImageSamplers;
+
+	std::vector<avk::buffer> mViewProjBuffers;
 
 	avk::buffer mDrawCallBuffer;
 	avk::buffer mDrawCallCountBuffer;
-
-	std::vector<MeshDraw> mMeshTransforms;
-	uint32_t mDrawCount;
-
-	bool wireframe;
-	bool lod;
-
 	avk::buffer mMeshDrawBuffer;
-
-	std::vector<avk::buffer> mViewProjBuffers;
-	avk::descriptor_cache mDescriptorCache;
-	std::vector<data_for_draw_call> mDrawCalls;
 	avk::buffer mLightBuffer;
 	avk::buffer mMaterialBuffer;
-	std::vector<avk::image_sampler> mImageSamplers;
 	avk::buffer mMeshletsBuffer;
 
 	uint32_t mNumTaskWorkgroups;
