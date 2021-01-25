@@ -33,8 +33,6 @@ class lod_mesh_shader : public gvk::invokee
 	struct MeshDrawCommand
 	{
 		uint32_t drawId;
-		VkDrawIndexedIndirectCommand indirect; // 5 uint32_t
-		VkDrawMeshTasksIndirectCommandNV indirectMS; // 2 uint32_t
 	};
 
 	struct data_for_draw_call
@@ -56,6 +54,7 @@ class lod_mesh_shader : public gvk::invokee
 	struct push_constants_for_mesh_shader {
 		int mModelId;
 		int mLODEnabled;
+		int mColorWithLOD;
 		float mLODFactor;
 	};
 
@@ -69,14 +68,6 @@ public:
 	lod_mesh_shader(avk::queue& aQueue) : mQueue{ &aQueue }
 	{}
 
-	/** Two queries per frame, and those double-buffered! => 4 query slots per frame in flight
-	*
-	*	@param	aForCurrentFrame	true: double buffer indices for current frame,
-	*								false: double buffer indices for the previous frame
-	*	@param	aQueryIndex			Valid values: [0..aMaxQueryIndices)
-	*	@param	aMaxQueryIndices	How many query indices are there per entry?
-	*								Could be, e.g., two for timestamps: a begin timestamp and an end timestamp.
-	*/
 	static size_t get_timestamp_query_index(bool aForCurrentFrame, int64_t aQueryIndex = 0, int64_t aMaxQueryIndices = 1)
 	{
 		assert(aQueryIndex >= 0 && aQueryIndex < aMaxQueryIndices);
@@ -96,6 +87,7 @@ public:
 		mLODEnabled = true;
 		mLODFactor = 1;
 		mDrawCount = 500;
+		mColorWithLOD = false;
 
 		mDescriptorCache = gvk::context().create_descriptor_cache();
 
@@ -300,7 +292,7 @@ public:
 		}
 
 		mMeshDrawBuffer = gvk::context().create_buffer(
-			avk::memory_usage::device, {}/*vk::BufferUsageFlagBits::eIndirectBuffer*/,
+			avk::memory_usage::device, {},
 			avk::storage_buffer_meta::create_from_data(mMeshTransforms),
 			avk::instance_buffer_meta::create_from_data(mMeshTransforms)
 			.describe_member(offsetof(MeshDraw, transformationMatrix),							vk::Format::eR32G32B32A32Sfloat, avk::content_description::user_defined_01)
@@ -375,13 +367,22 @@ public:
 		mCam.set_perspective_projection(glm::radians(60.0f), gvk::context().main_window()->aspect_ratio(), 0.03f, 1000.0f);
 		gvk::current_composition()->add_element(mCam);
 
+		mTimestampPool = gvk::context().create_query_pool_for_timestamp_queries(gvk::context().main_window()->number_of_frames_in_flight() * 4);
+		mPipelineStatsPool = gvk::context().create_query_pool_for_pipeline_statistics_queries(gvk::context().main_window()->number_of_frames_in_flight() * 2, vk::QueryPipelineStatisticFlagBits::eClippingInvocations | vk::QueryPipelineStatisticFlagBits::eClippingPrimitives);
+
 		auto imguiManager = gvk::current_composition()->element_by_type<gvk::imgui_manager>();
 		if (nullptr != imguiManager) {
-			imguiManager->add_callback([this] ()  {
+			imguiManager->add_callback([this, lMsDraw = double{ 0.0 }] () mutable {
 				ImGui::Begin("Info & Settings");
 				ImGui::SetWindowPos(ImVec2(1.0f, 1.0f), ImGuiCond_FirstUseEver);
 				ImGui::Text("%.3f ms/frame", 1000.0f / ImGui::GetIO().Framerate);
 				ImGui::Text("%.1f FPS", ImGui::GetIO().Framerate);
+
+				const auto timestamps = mTimestampPool->get_results<uint64_t, 2>(get_timestamp_query_index(false, 0, 2), {});
+				const auto ns = timestamps[1] - timestamps[0];
+				const auto ms = ns * 1e-6;
+				lMsDraw = glm::mix(lMsDraw, ms, 0.05);
+				ImGui::TextColored(ImVec4(0.5f, 1.f, .5f, 1.f), "%.3lf ms/draw", lMsDraw);
 
 				static std::vector<float> values;
 				values.push_back(1000.0f / ImGui::GetIO().Framerate);
@@ -394,7 +395,11 @@ public:
 				ImGui::SliderInt("Objects", &mDrawCount, 1, mMaxDrawCount);
 				ImGui::Checkbox("Wireframe", &mWireframe);
 				ImGui::Checkbox("LOD", &mLODEnabled);
+				ImGui::Checkbox("Color by LoD", &mColorWithLOD);
 				ImGui::SliderFloat("LOD swap", &mLODFactor, 0.1f, 3.0f);
+
+				auto clipInvoc = static_cast<double>(mPipelineStatsPool->get_result<uint32_t>(get_timestamp_query_index(false, 0, 1), {}));
+				ImGui::TextColored(ImVec4(1.f, .5f, .5f, 1.f), "%.0lf M triangles", clipInvoc * 1e-6);
 				ImGui::End();
 			});
 		}
@@ -435,6 +440,13 @@ public:
 		auto& boundpipeline = (mWireframe) ? mWireframePipeline : mPipeline;
 
 		cmdBfr->begin_recording();
+
+		mPipelineStatsPool->reset(get_timestamp_query_index(true, 0, 1), 1, avk::sync::with_barriers_into_existing_command_buffer(*cmdBfr, {}, {}));
+		mPipelineStatsPool->begin_query(get_timestamp_query_index(true, 0, 1), {}, avk::sync::with_barriers_into_existing_command_buffer(*cmdBfr, {}, {}));
+		mTimestampPool->reset(get_timestamp_query_index(true, 0, 2), 2, avk::sync::with_barriers_into_existing_command_buffer(*cmdBfr, {}, {})); 
+		mTimestampPool->write_timestamp(get_timestamp_query_index(true, 0, 2), avk::pipeline_stage::bottom_of_pipe, avk::sync::with_barriers_into_existing_command_buffer(*cmdBfr, {}, {}));
+
+
 		cmdBfr->begin_render_pass_for_framebuffer(boundpipeline->get_renderpass(), gvk::context().main_window()->current_backbuffer());
 		cmdBfr->bind_pipeline(const_referenced(boundpipeline));
 		cmdBfr->bind_descriptors(boundpipeline->layout(),
@@ -454,17 +466,20 @@ public:
 		// numMeshletWorkgroups / 32 + 1 -> plus 1 because of rounding
 		for (int i = 0; i < mDrawCount; i++)
 		{
-			cmdBfr->push_constants(mPipeline->layout(), push_constants_for_mesh_shader{ i, static_cast<int>(mLODEnabled), mLODFactor });
+			cmdBfr->push_constants(mPipeline->layout(), push_constants_for_mesh_shader{ i, static_cast<int>(mLODEnabled), static_cast<int>(mColorWithLOD), mLODFactor });
 			cmdBfr->handle().drawMeshTasksNV(mNumMeshletWorkgroups / 32 + 1, 0, gvk::context().dynamic_dispatch());
 		}
+		
 
 		// Buffer buffer, DeviceSize offset, Buffer countBuffer, DeviceSize countBufferOffset, uint32_t maxDrawCount, uint32_t stride
-		//cmdBfr->handle().drawMeshTasksIndirectCountNV(mDrawCallBuffer.get().handle(), offsetof(MeshDrawCommand, indirectMS), mDrawCallCountBuffer.get().handle(),
-		//	static_cast<uint32_t>(0), static_cast<uint32_t>(mMeshTransforms.size()), static_cast<uint32_t>(sizeof(MeshDrawCommand)));
-		//cmdBfr->handle().drawMeshTasksIndirectNV(mDrawCallBuffer.get().handle(), offsetof(MeshDrawCommand, indirectMS),
-		//	static_cast<uint32_t>(mMeshTransforms.size()), static_cast<uint32_t>(sizeof(MeshDrawCommand)));
+		//cmdBfr->handle().drawMeshTasksIndirectCountNV(mDrawCallBuffer.get().handle(), offsetof(MeshDrawCommand, drawId), mDrawCallCountBuffer.get().handle(),
+		//	0, mDrawCount, static_cast<uint32_t>(sizeof(MeshDrawCommand)), gvk::context().dynamic_dispatch());
 
 		cmdBfr->end_render_pass();
+
+		mTimestampPool->write_timestamp(get_timestamp_query_index(true, 1, 2), avk::pipeline_stage::all_graphics, avk::sync::with_barriers_into_existing_command_buffer(*cmdBfr, {}, {}));
+		mPipelineStatsPool->end_query(get_timestamp_query_index(true, 0, 1), avk::sync::with_barriers_into_existing_command_buffer(*cmdBfr, {}, {}));
+
 		cmdBfr->end_recording();
 
 		auto imageAvailableSemaphore = mainWnd->consume_current_image_available_semaphore();
@@ -480,8 +495,12 @@ private:
 	avk::graphics_pipeline mWireframePipeline;
 	gvk::quake_camera mCam;
 
+	avk::query_pool mTimestampPool;
+	avk::query_pool mPipelineStatsPool;
+
 	bool mWireframe;
 	bool mLODEnabled;
+	bool mColorWithLOD;
 	float mLODFactor;
 	const uint32_t mMaxDrawCount = 2000;
 	int mDrawCount;

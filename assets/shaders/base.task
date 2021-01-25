@@ -33,6 +33,7 @@ layout(set = 3, binding = 1) buffer Draws
 layout(push_constant) uniform PushConstants {
 	int mModelId;
 	int enableLOD;
+	int mColorWithLOD;
 	float lodAggressiveness;
 } pushConstants;
 
@@ -64,6 +65,7 @@ void main()
 
 		meshletOffset = mi * 32;
 		mModelId = pushConstants.mModelId;
+		_placeholder = pushConstants.mColorWithLOD;
 		if(size[lod] < 32)
 		{
 			gl_TaskCountNV = size[lod];

@@ -48,6 +48,7 @@ layout (location = 0) out PerVertexData
 	vec3 normalWS;
 	vec2 texCoord;
 	flat int materialIndex;
+	flat bool useLodColor;
 	vec3 color;
 } v_out[]; 
 
@@ -64,7 +65,6 @@ void main() {
 	uint offsets[] = {0, 975, 1068, 1078};
 	uint size[] = {975, 93, 10, 1};
 
-	//int lod = 0;
     uint meshlet_index = gl_WorkGroupID.x + meshletOffset + offsets[lod];
 
 	if (meshlet_index > offsets[lod] + size[lod])
@@ -99,6 +99,7 @@ void main() {
 		v_out[i].normalWS = mat3(modelMatrix) * normal;
 		v_out[i].texCoord = tex;
 		v_out[i].materialIndex = int(materialIndex);
+		v_out[i].useLodColor = _placeholder == 1;
 		v_out[i].color = meshletcolors[lod];
 	}
 

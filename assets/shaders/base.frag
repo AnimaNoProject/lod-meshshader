@@ -85,11 +85,19 @@ layout (location = 0) in PerVertexData
 	vec3 normalWS;
 	vec2 texCoord;
 	flat int materialIndex;
+	flat bool useLodColor;
 	vec3 color;
 } v_in;
 
 layout (location = 0) out vec4 fs_out;
 
 void main() {
-    fs_out = vec4(v_in.color, 1.0);
+	if(v_in.useLodColor)
+	{
+		fs_out = vec4(v_in.color, 1.0);
+	}
+	else
+	{
+		fs_out = vec4(texture(textures[matSsbo.materials[v_in.materialIndex].mDiffuseTexIndex], v_in.texCoord).rgb, 1.0f);
+	}
 }
