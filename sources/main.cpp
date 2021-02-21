@@ -2,8 +2,13 @@
 #include <imgui.h>
 #include <glm/gtx/quaternion.hpp>
 #include <meshoptimizer.h>
+#include <glm/gtx/string_cast.hpp>
+#include <glm/gtx/quaternion.hpp>
 
 #define ENABLE_LOD 1
+
+
+
 
 class lod_mesh_shader : public gvk::invokee
 {
@@ -81,12 +86,154 @@ public:
 		return static_cast<size_t>(ifi * (2 * aMaxQueryIndices) + std::abs(pingpong % 2) * aMaxQueryIndices + aQueryIndex);
 	}
 
+	std::vector<glm::vec3> positions{ glm::vec3(-82.669136, -80.014473, 109.022339),
+										glm::vec3(-77.311661, -67.961662, 47.000385),
+										glm::vec3(-75.192184, -37.529125, -17.798265),
+										glm::vec3(-80.284256, 12.131799, -88.145790),
+										glm::vec3(-16.200171, 33.549606, -126.127365),
+										glm::vec3(45.784935, 36.482906, -129.494492),
+										glm::vec3(142.241241, 80.653099, -97.181747),
+										glm::vec3(161.240387, 76.640808, -27.330910),
+										glm::vec3(127.707253, 74.478531, 34.301594),
+										glm::vec3(106.527702, 76.358170, 104.471214),
+										glm::vec3(41.530941, 46.302673, 107.585518),
+										glm::vec3(18.106771, 8.161861, 58.683521),
+										glm::vec3(-15.133938, -18.446556, 25.224590),
+										glm::vec3(-45.244370, -36.961044, -0.675231),
+										glm::vec3(-74.697983, -46.020756, -34.127949),
+										glm::vec3(-98.123886, -34.286472, -88.693741),
+										glm::vec3(-35.683163, -12.107698, -122.139549),
+										glm::vec3(8.208196, 24.114525, -84.942909),
+										glm::vec3(44.651176, 58.684219, -39.485088),
+										glm::vec3(59.941940, 66.262901, 5.132889),
+										glm::vec3(55.650024, 51.241756, 52.414043),
+										glm::vec3(18.124557, 14.994072, 83.055710),
+										glm::vec3(-24.870203, -9.885475, 81.326782),
+										glm::vec3(-60.810417, -4.901750, 68.201927),
+										glm::vec3(-70.530403, 31.608805, 47.312332),
+										glm::vec3(-65.760063, 55.972279, 20.893751),
+										glm::vec3(-45.105743, 66.501488, -34.130291),
+										glm::vec3(7.818104, 57.408180, -77.371536),
+										glm::vec3(42.214249, 29.211254, -79.666794),
+										glm::vec3(62.450451, -8.928343, -58.729210),
+										glm::vec3(75.381645, -36.062202, -4.195993),
+										glm::vec3(82.249718, -30.055794, 38.541924),
+										glm::vec3(61.820030, 17.120892, 82.163589),
+										glm::vec3(36.011517, 47.343639, 112.110535),
+										glm::vec3(8.727442, 33.891987, 159.271393),
+										glm::vec3(-41.898071, 36.391567, 195.746414),
+										glm::vec3(-124.036324, 52.723419, 195.445511),
+										glm::vec3(-133.168427, 33.787514, 147.142151),
+										glm::vec3(-120.912155, 10.147814, 83.926605),
+										glm::vec3(-90.307899, 10.297812, 25.398392),
+										glm::vec3(-93.608887, 16.363335, -23.878304),
+										glm::vec3(-68.063477, 10.337042, -68.928787),
+										glm::vec3(-12.157230, -25.886219, -86.889130),
+										glm::vec3(48.712872, -73.457237, -104.846031),
+										glm::vec3(98.266571, -73.340912, -34.474541) };
+
+	std::vector<glm::quat> lookats{
+		glm::quat(0.966195, {0.109643, -0.231843, 0.026311}),
+		glm::quat(0.996785, {0.076901, 0.022430, -0.001728}),
+		glm::quat(0.935970, {0.349630, -0.038866, 0.014521}),
+		glm::quat(0.739560, {0.230797, -0.603581, 0.188364}),
+		glm::quat(0.403386, {0.051504, -0.906226, 0.115712}),
+		glm::quat(0.000764, {-0.000219, -0.961884, -0.273475}),
+		glm::quat(-0.506862, {0.189339, -0.787811, -0.294293}),
+		glm::quat(-0.396375, {0.058284, -0.906496, -0.133303}),
+		glm::quat(-0.478974, {-0.032140, -0.875281, 0.058726}),
+		glm::quat(-0.910398, {0.047386, -0.410482, -0.021369}),
+		glm::quat(-0.901667, {0.378038, -0.193679, -0.081207}),
+		glm::quat(-0.922167, {0.247791, -0.286863, -0.077085}),
+		glm::quat(-0.875580, {0.222643, -0.415511, -0.105661}),
+		glm::quat(-0.903132, {0.158289, -0.393159, -0.068911}),
+		glm::quat(-0.954433, {-0.000473, -0.298471, 0.000144}),
+		glm::quat(-0.814806, {-0.149947, 0.550782, -0.101364}),
+		glm::quat(-0.386417, {-0.099280, 0.888133, -0.228194}),
+		glm::quat(-0.478760, {-0.140518, 0.831564, -0.244077}),
+		glm::quat(-0.175839, {-0.038025, 0.961470, -0.207943}),
+		glm::quat(-0.144719, {0.006739, 0.988395, 0.045998}),
+		glm::quat(0.211057, {-0.054001, 0.945532, 0.241944}),
+		glm::quat(0.595029, {-0.211824, 0.730403, 0.260023}),
+		glm::quat(0.777383, {-0.083500, 0.619922, 0.066593}),
+		glm::quat(0.826510, {0.273894, 0.466867, -0.154708}),
+		glm::quat(0.911271, {0.409130, -0.043149, 0.019377}),
+		glm::quat(0.958308, {0.227915, -0.167773, 0.039906}),
+		glm::quat(0.985831, {0.030564, -0.164982, 0.005119}),
+		glm::quat(0.786130, {-0.098390, -0.605494, -0.075776}),
+		glm::quat(0.521749, {-0.286398, -0.704467, -0.386686}),
+		glm::quat(0.199518, {-0.066790, -0.927083, -0.310320}),
+		glm::quat(0.047563, {-0.006175, -0.990574, -0.128503}),
+		glm::quat(0.130320, {0.029341, -0.966852, 0.217725}),
+		glm::quat(-0.377250, {-0.212012, -0.785941, 0.441680}),
+		glm::quat(-0.856483, {-0.339111, -0.361890, 0.143279}),
+		glm::quat(-0.991604, {-0.089981, -0.092762, 0.008412}),
+		glm::quat(-0.968918, {0.136055, 0.204721, 0.028742}),
+		glm::quat(-0.940638, {0.203450, 0.265630, 0.057447}),
+		glm::quat(-0.938404, {0.280552, 0.193380, 0.057808}),
+		glm::quat(-0.846315, {-0.005497, -0.532691, 0.003454}),
+		glm::quat(-0.519197, {0.010644, -0.854440, -0.017528}),
+		glm::quat(0.337564, {-0.032514, -0.936437, -0.090181}),
+		glm::quat(0.778655, {-0.155825, -0.596025, -0.119270}),
+		glm::quat(0.738636, {-0.325005, -0.540617, -0.237867}),
+		glm::quat(0.122346, {-0.026341, -0.969957, -0.208775}),
+		glm::quat(-0.248796, {-0.049791, -0.948504, 0.189794})
+	};
+
+	glm::mat4 ConstructBSplineB(glm::vec3 p1, glm::vec3 p2, glm::vec3 p3, glm::vec3 p4)
+	{
+		glm::mat4 b = { p1.x, p2.x, p3.x,  p4.x,
+						p1.y, p2.y, p3.y,  p4.y,
+						p1.z, p2.z, p3.z,  p4.z,
+						   1,    1,    1,     1 };
+
+		glm::mat4 m = { -1,  3, -3,  1,
+						 3, -6,  3,  0,
+						-3,  0,  3,  0,
+						 1,  4,  1,  0 };
+
+		return glm::transpose(m) * b;
+	}
+
+	std::vector<glm::vec3> GetBSpline(std::vector<glm::vec3> points, float interval)
+	{
+		std::vector<glm::vec3> interpList;
+		for (size_t i = 0; i < points.size() - 3; i++)
+		{
+			for (float u = 0; u <= 1; u += interval)
+			{
+				glm::vec4 U = { glm::pow(u,3), glm::pow(u,2), u, 1 };
+				glm::vec3 PU = (1.0f / 6.0f) * U * ConstructBSplineB(points[i], points[i + 1], points[i + 2], points[i + 3]);
+				interpList.push_back(PU);
+			}
+		}
+		return interpList;
+	}
+
+	std::vector<glm::quat> ConstructQuats(std::vector<glm::quat> looks, float interval)
+	{
+		std::vector<glm::quat> interpList;
+
+		for (size_t i = 0; i < looks.size() - 1; i++)
+		{
+			for (float u = 0; u <= 1; u += interval)
+			{
+				interpList.push_back(glm::slerp(looks[i], looks[i + 1], u));
+			}
+		}
+
+		return interpList;
+	}
+
 	void initialize() override	
 	{
+		mTranslations = GetBSpline(positions, 0.02f);
+		mRotations = ConstructQuats(lookats, 0.02f);
+
 		mWireframe = false;
 		mLODEnabled = true;
 		mLODFactor = 1;
-		mDrawCount = 500;
+		mDrawCount = 1000;
 		mColorWithLOD = false;
 
 		mDescriptorCache = gvk::context().create_descriptor_cache();
@@ -237,15 +384,15 @@ public:
 				avk::storage_buffer_meta::create_from_data(meshlets),
 				avk::instance_buffer_meta::create_from_data(meshlets)
 				// describe transformation matrix
-				.describe_member(offsetof(meshlet, mModelMatrix), vk::Format::eR32G32B32A32Sfloat, avk::content_description::user_defined_01)
-				.describe_member(offsetof(meshlet, mModelMatrix) + sizeof(glm::vec4), vk::Format::eR32G32B32A32Sfloat, avk::content_description::user_defined_02)
-				.describe_member(offsetof(meshlet, mModelMatrix) + 2 * sizeof(glm::vec4), vk::Format::eR32G32B32A32Sfloat, avk::content_description::user_defined_03)
-				.describe_member(offsetof(meshlet, mModelMatrix) + 3 * sizeof(glm::vec4), vk::Format::eR32G32B32A32Sfloat, avk::content_description::user_defined_04)
+				.describe_member(offsetof(meshlet, mModelMatrix),							vk::Format::eR32G32B32A32Sfloat, avk::content_description::user_defined_01)
+				.describe_member(offsetof(meshlet, mModelMatrix) + sizeof(glm::vec4),		vk::Format::eR32G32B32A32Sfloat, avk::content_description::user_defined_02)
+				.describe_member(offsetof(meshlet, mModelMatrix) + 2 * sizeof(glm::vec4),	vk::Format::eR32G32B32A32Sfloat, avk::content_description::user_defined_03)
+				.describe_member(offsetof(meshlet, mModelMatrix) + 3 * sizeof(glm::vec4),	vk::Format::eR32G32B32A32Sfloat, avk::content_description::user_defined_04)
 				// mesh pos, texelbuffer and meshopt_Meshlet
-				.describe_member(offsetof(meshlet, mMeshPos), vk::Format::eR32Uint, avk::content_description::user_defined_05)
-				.describe_member(offsetof(meshlet, mModelIndex), vk::Format::eR32Uint, avk::content_description::user_defined_06)
-				.describe_member(offsetof(meshlet, mTexelBufferIndex), vk::Format::eR32Uint, avk::content_description::user_defined_07)
-				.describe_member(offsetof(meshlet, mGeometry), vk::Format::eR32Uint, avk::content_description::user_defined_08)
+				.describe_member(offsetof(meshlet, mMeshPos),								vk::Format::eR32Uint, avk::content_description::user_defined_05)
+				.describe_member(offsetof(meshlet, mModelIndex),							vk::Format::eR32Uint, avk::content_description::user_defined_06)
+				.describe_member(offsetof(meshlet, mTexelBufferIndex),						vk::Format::eR32Uint, avk::content_description::user_defined_07)
+				.describe_member(offsetof(meshlet, mGeometry),								vk::Format::eR32Uint, avk::content_description::user_defined_08)
 			);
 			mMeshletsBuffer->fill(meshlets.data(), 0, avk::sync::wait_idle(true));
 			mNumMeshletWorkgroups = meshlets.size();
@@ -368,7 +515,7 @@ public:
 		gvk::current_composition()->add_element(mCam);
 
 		mTimestampPool = gvk::context().create_query_pool_for_timestamp_queries(gvk::context().main_window()->number_of_frames_in_flight() * 4);
-		mPipelineStatsPool = gvk::context().create_query_pool_for_pipeline_statistics_queries(gvk::context().main_window()->number_of_frames_in_flight() * 2, vk::QueryPipelineStatisticFlagBits::eClippingInvocations | vk::QueryPipelineStatisticFlagBits::eClippingPrimitives);
+		mPipelineStatsPool = gvk::context().create_query_pool_for_pipeline_statistics_queries(gvk::context().main_window()->number_of_frames_in_flight() * 2, vk::QueryPipelineStatisticFlagBits::eClippingInvocations);
 
 		auto imguiManager = gvk::current_composition()->element_by_type<gvk::imgui_manager>();
 		if (nullptr != imguiManager) {
@@ -405,8 +552,19 @@ public:
 		}
 	}
 
+	int index = 0;
+
 	void update() override
 	{
+		mCam.set_translation(mTranslations[index]);
+		mCam.set_rotation(mRotations[index]);
+		index++;
+
+		if (index >= mTranslations.size() || index >= mRotations.size())
+		{
+			gvk::current_composition()->stop();
+		}
+		
 		if (gvk::input().key_pressed(gvk::key_code::escape)) {
 			gvk::current_composition()->stop();
 		}
@@ -441,11 +599,11 @@ public:
 
 		cmdBfr->begin_recording();
 
+		mTimestampPool->reset(get_timestamp_query_index(true, 0, 2), 2, avk::sync::with_barriers_into_existing_command_buffer(*cmdBfr, {}, {}));
+		mTimestampPool->write_timestamp(get_timestamp_query_index(true, 0, 2), avk::pipeline_stage::top_of_pipe, avk::sync::with_barriers_into_existing_command_buffer(*cmdBfr, {}, {}));
+
 		mPipelineStatsPool->reset(get_timestamp_query_index(true, 0, 1), 1, avk::sync::with_barriers_into_existing_command_buffer(*cmdBfr, {}, {}));
 		mPipelineStatsPool->begin_query(get_timestamp_query_index(true, 0, 1), {}, avk::sync::with_barriers_into_existing_command_buffer(*cmdBfr, {}, {}));
-		mTimestampPool->reset(get_timestamp_query_index(true, 0, 2), 2, avk::sync::with_barriers_into_existing_command_buffer(*cmdBfr, {}, {})); 
-		mTimestampPool->write_timestamp(get_timestamp_query_index(true, 0, 2), avk::pipeline_stage::bottom_of_pipe, avk::sync::with_barriers_into_existing_command_buffer(*cmdBfr, {}, {}));
-
 
 		cmdBfr->begin_render_pass_for_framebuffer(boundpipeline->get_renderpass(), gvk::context().main_window()->current_backbuffer());
 		cmdBfr->bind_pipeline(const_referenced(boundpipeline));
@@ -469,11 +627,6 @@ public:
 			cmdBfr->push_constants(mPipeline->layout(), push_constants_for_mesh_shader{ i, static_cast<int>(mLODEnabled), static_cast<int>(mColorWithLOD), mLODFactor });
 			cmdBfr->handle().drawMeshTasksNV(mNumMeshletWorkgroups / 32 + 1, 0, gvk::context().dynamic_dispatch());
 		}
-		
-
-		// Buffer buffer, DeviceSize offset, Buffer countBuffer, DeviceSize countBufferOffset, uint32_t maxDrawCount, uint32_t stride
-		//cmdBfr->handle().drawMeshTasksIndirectCountNV(mDrawCallBuffer.get().handle(), offsetof(MeshDrawCommand, drawId), mDrawCallCountBuffer.get().handle(),
-		//	0, mDrawCount, static_cast<uint32_t>(sizeof(MeshDrawCommand)), gvk::context().dynamic_dispatch());
 
 		cmdBfr->end_render_pass();
 
@@ -489,6 +642,9 @@ public:
 
 private:
 
+	std::stringstream spos;
+	std::stringstream slook;
+
 	avk::queue* mQueue;
 	avk::descriptor_cache mDescriptorCache;
 	avk::graphics_pipeline mPipeline;
@@ -502,8 +658,11 @@ private:
 	bool mLODEnabled;
 	bool mColorWithLOD;
 	float mLODFactor;
-	const uint32_t mMaxDrawCount = 2000;
+	const uint32_t mMaxDrawCount = 250;
 	int mDrawCount;
+
+	std::vector<glm::vec3> mTranslations;
+	std::vector<glm::quat> mRotations;
 
 	std::vector<MeshDraw> mMeshTransforms;
 	std::vector<data_for_draw_call> mDrawCalls;
@@ -528,8 +687,12 @@ private:
 	std::vector<avk::buffer_view> mNormalBuffers;
 }; 
 
+
 int main() // <== Starting point ==
 {
+
+
+
 	try {
 		// Create a window and open it
 		auto mainWnd = gvk::context().create_window("LOD Mesh Shaders");
