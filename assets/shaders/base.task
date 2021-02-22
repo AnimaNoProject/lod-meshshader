@@ -1,0 +1,75 @@
+#version 460
+#extension GL_EXT_shader_16bit_storage: require
+#extension GL_EXT_shader_8bit_storage: require
+#extension GL_NV_mesh_shader : require
+#extension GL_EXT_nonuniform_qualifier : require
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_ARB_shader_draw_parameters: require
+
+#define MESH_MAX_VERTICES 64
+#define MESH_MAX_INDICES 378
+#define MESH_MAX_INDICES_PADDED 380
+
+#define MESHOPT_MAX_VERTICES 64
+#define MESHOPT_MAX_TRIANGLES 124
+
+#include "definitions.h"
+
+layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+
+layout(set = 0, binding = 1) uniform CameraTransform
+{
+	mat4 mViewProjMatrix;
+	vec4 mCamPos;
+} ubo;
+
+layout(set = 2, binding = 4) buffer	 MeshletsBuffer { meshlet values[]; } meshletsBuffer;
+
+layout(set = 3, binding = 1) buffer Draws
+{
+	MeshDraw draws[];
+};
+
+layout(push_constant) uniform PushConstants {
+	int mModelId;
+	int enableLOD;
+	int mColorWithLOD;
+	float lodAggressiveness;
+} pushConstants;
+
+out taskNV block {
+	uint meshletOffset;
+	uint lod;
+	uint mModelId;
+	uint _placeholder;
+};
+
+void main()
+{
+	uint mi = gl_WorkGroupID.x;
+	uint ti = gl_LocalInvocationID.x;
+	uint offsets[] = {0, 975, 1068, 1078};
+	uint size[] = {975, 93, 10, 1};
+
+	if (ti == 0)
+	{
+		if(pushConstants.enableLOD == 1)
+		{
+			float d = length(vec3(draws[pushConstants.mModelId].position) - vec3(ubo.mCamPos));
+			lod = int(clamp(d / (25.0f * pushConstants.lodAggressiveness), 0.0f, 3.0f));
+		}
+		else
+		{
+			lod = 0;
+		}
+
+		meshletOffset = mi * 32;
+		mModelId = pushConstants.mModelId;
+		_placeholder = pushConstants.mColorWithLOD;
+		if(size[lod] < 32)
+		{
+			gl_TaskCountNV = size[lod];
+		}
+		gl_TaskCountNV = 32;
+	}
+}

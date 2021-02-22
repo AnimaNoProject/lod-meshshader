@@ -1,0 +1,6 @@
+[submodule "Gears-Vk"]
+	path = Gears-Vk
+	url = https://github.com/cg-tuwien/Gears-Vk
+[submodule "meshoptimizer"]
+	path = meshoptimizer
+	url = https://github.com/zeux/meshoptimizer
